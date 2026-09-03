@@ -1,0 +1,647 @@
+// Gampangin FNB — schema.prisma
+// Konvensi: id cuid(), createdAt/updatedAt di setiap model, uang & qty pakai Decimal
+// (JANGAN Float), status pakai enum, index untuk kolom yang sering difilter.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// ENUM
+// ---------------------------------------------------------------------------
+
+enum Role {
+  OWNER
+  FINANCE
+  SALES
+  PRODUKSI
+}
+
+enum MetodeBayarPOS {
+  CASH
+  TRANSFER_QRIS
+  KREDIT
+}
+
+enum StatusBayar {
+  LUNAS
+  PARSIAL
+  BELUM_BAYAR
+}
+
+enum StatusOrderB2B {
+  DRAFT
+  INVOICE
+  DIKIRIM
+  PARSIAL
+  LUNAS
+  SELESAI
+  BATAL
+}
+
+enum SumberUtang {
+  PEMBELIAN
+  PINJAMAN
+  INVESTOR
+}
+
+enum TipeModal {
+  MODAL_AWAL
+  PENAMBAHAN
+  PRIVE
+}
+
+enum SumberDanaModal {
+  UANG_SENDIRI
+  PINJAMAN
+  INVESTOR
+}
+
+enum TipePergerakanStok {
+  IN
+  OUT
+}
+
+enum SumberPergerakanStok {
+  PEMBELIAN
+  PRODUKSI_MASUK
+  PRODUKSI_PAKAI
+  PENJUALAN_POS
+  PENJUALAN_B2B
+  ADJUSTMENT
+  WASTE
+}
+
+enum TipePembayaran {
+  PIUTANG
+  UTANG
+}
+
+// ---------------------------------------------------------------------------
+// USER & OUTLET
+// ---------------------------------------------------------------------------
+
+model User {
+  id           String    @id @default(cuid())
+  nama         String
+  username     String    @unique
+  passwordHash String
+  role         Role      @default(SALES)
+  outletId     String?
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  outlet Outlet? @relation(fields: [outletId], references: [id])
+
+  auditLogs      AuditLog[]
+  orderPOS       OrderPOS[]
+  orderB2B       OrderB2B[]
+  produksiBatch  ProduksiBatch[]
+  pembelian      Pembelian[]
+  pembayaran     Pembayaran[]
+  modal          Modal[]
+  pengeluaran    Pengeluaran[]
+
+  @@index([outletId])
+  @@map("users")
+}
+
+model Outlet {
+  id        String   @id @default(cuid())
+  nama      String
+  alamat    String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users         User[]
+  orderPOS      OrderPOS[]
+  orderB2B      OrderB2B[]
+  produksiBatch ProduksiBatch[]
+  pembelian     Pembelian[]
+  pengeluaran   Pengeluaran[]
+
+  @@map("outlets")
+}
+
+model Pengaturan {
+  id        String   @id @default("singleton")
+  namaToko  String   @default("Gampangin FNB")
+  logoUrl   String?
+  updatedAt DateTime @updatedAt
+
+  @@map("pengaturan")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  aksi      String // CREATE / UPDATE / DELETE / LOGIN / EXPORT / RESET_DATA
+  entitas   String
+  entitasId String?
+  detail    Json?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([entitas, entitasId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// ---------------------------------------------------------------------------
+// MASTER DATA — DATABASE
+// ---------------------------------------------------------------------------
+
+model Customer {
+  id        String   @id @default(cuid())
+  nama      String
+  kontak    String?
+  alamat    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orderPOS OrderPOS[]
+
+  @@index([nama])
+  @@map("customers")
+}
+
+model Agen {
+  id        String   @id @default(cuid())
+  nama      String
+  kontak    String?
+  alamat    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orderB2B OrderB2B[]
+
+  @@index([nama])
+  @@map("agen")
+}
+
+model Supplier {
+  id        String   @id @default(cuid())
+  nama      String
+  kontak    String?
+  alamat    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  pembelian Pembelian[]
+
+  @@index([nama])
+  @@map("suppliers")
+}
+
+model BahanBaku {
+  id           String   @id @default(cuid())
+  nama         String
+  satuan       String // gr, kg, ml, L, pcs, dst
+  stok         Decimal  @default(0) @db.Decimal(15, 3)
+  stokMinimum  Decimal  @default(0) @db.Decimal(15, 3)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  pembelianItem     PembelianItem[]
+  produksiBahanBaku ProduksiBahanBaku[]
+  stokMovement      StokMovementBahanBaku[]
+
+  @@index([nama])
+  @@map("bahan_baku")
+}
+
+model Kemasan {
+  id          String   @id @default(cuid())
+  nama        String
+  satuan      String // pcs, botol, dus, dst
+  stok        Decimal  @default(0) @db.Decimal(15, 3)
+  stokMinimum Decimal  @default(0) @db.Decimal(15, 3)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  pembelianItem  PembelianItem[]
+  produksiKemasan ProduksiKemasan[]
+  stokMovement   StokMovementKemasan[]
+
+  @@index([nama])
+  @@map("kemasan")
+}
+
+model ProdukJadi {
+  id           String   @id @default(cuid())
+  nama         String
+  satuan       String @default("pcs")
+  beratBersih  Int? // gram — dipakai untuk alokasi HPP produksi multi-output
+  harga        Decimal  @default(0) @db.Decimal(15, 2)
+  stok         Decimal  @default(0) @db.Decimal(15, 3)
+  stokMinimum  Decimal  @default(0) @db.Decimal(15, 3)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  orderPOSItem   OrderPOSItem[]
+  orderB2BItem   OrderB2BItem[]
+  produksiOutput ProduksiOutput[]
+  stokMovement   StokMovementProdukJadi[]
+
+  @@index([nama])
+  @@map("produk_jadi")
+}
+
+// ---------------------------------------------------------------------------
+// PENJUALAN POS (RETAIL)
+// ---------------------------------------------------------------------------
+
+model OrderPOS {
+  id                String          @id @default(cuid())
+  nomor             String          @unique
+  customerId        String
+  outletId          String
+  userId            String
+  metodeBayar       MetodeBayarPOS  @default(CASH)
+  statusBayar       StatusBayar     @default(LUNAS)
+  tanggalJatuhTempo DateTime?
+  subtotal          Decimal         @db.Decimal(15, 2)
+  total             Decimal         @db.Decimal(15, 2)
+  catatan           String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  customer Customer @relation(fields: [customerId], references: [id])
+  outlet   Outlet   @relation(fields: [outletId], references: [id])
+  user     User     @relation(fields: [userId], references: [id])
+  items    OrderPOSItem[]
+  piutang  Piutang?
+
+  @@index([customerId])
+  @@index([outletId])
+  @@index([createdAt])
+  @@index([statusBayar])
+  @@map("order_pos")
+}
+
+model OrderPOSItem {
+  id               String  @id @default(cuid())
+  orderPOSId       String
+  produkJadiId     String
+  qty              Decimal @db.Decimal(15, 3)
+  hargaSatuan      Decimal @db.Decimal(15, 2)
+  subtotal         Decimal @db.Decimal(15, 2)
+  hppSatuanSaatItu Decimal? @db.Decimal(15, 2)
+
+  orderPOS   OrderPOS   @relation(fields: [orderPOSId], references: [id], onDelete: Cascade)
+  produkJadi ProdukJadi @relation(fields: [produkJadiId], references: [id])
+
+  @@index([orderPOSId])
+  @@map("order_pos_items")
+}
+
+// ---------------------------------------------------------------------------
+// PENJUALAN B2B (BUSINESS)
+// ---------------------------------------------------------------------------
+
+model OrderB2B {
+  id            String          @id @default(cuid())
+  nomor         String          @unique
+  agenId        String
+  outletId      String
+  userId        String
+  status        StatusOrderB2B  @default(DRAFT)
+  metodeBayar   MetodeBayarPOS  @default(TRANSFER_QRIS)
+  statusBayar   StatusBayar     @default(BELUM_BAYAR)
+  tanggalJatuhTempo DateTime?
+  subtotal      Decimal         @db.Decimal(15, 2)
+  total         Decimal         @db.Decimal(15, 2)
+  catatan       String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  agen      Agen             @relation(fields: [agenId], references: [id])
+  outlet    Outlet           @relation(fields: [outletId], references: [id])
+  user      User             @relation(fields: [userId], references: [id])
+  items     OrderB2BItem[]
+  invoice   Invoice?
+  suratJalan SuratJalan?
+  piutang   Piutang?
+
+  @@index([agenId])
+  @@index([outletId])
+  @@index([createdAt])
+  @@index([status])
+  @@map("order_b2b")
+}
+
+model OrderB2BItem {
+  id               String  @id @default(cuid())
+  orderB2BId       String
+  produkJadiId     String
+  qty              Decimal @db.Decimal(15, 3)
+  hargaSatuan      Decimal @db.Decimal(15, 2)
+  subtotal         Decimal @db.Decimal(15, 2)
+  hppSatuanSaatItu Decimal? @db.Decimal(15, 2)
+
+  orderB2B   OrderB2B   @relation(fields: [orderB2BId], references: [id], onDelete: Cascade)
+  produkJadi ProdukJadi @relation(fields: [produkJadiId], references: [id])
+
+  @@index([orderB2BId])
+  @@map("order_b2b_items")
+}
+
+model Invoice {
+  id            String   @id @default(cuid())
+  orderB2BId    String   @unique
+  nomorInvoice  String   @unique
+  tanggalTerbit DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  orderB2B OrderB2B @relation(fields: [orderB2BId], references: [id], onDelete: Cascade)
+
+  @@map("invoices")
+}
+
+model SuratJalan {
+  id           String   @id @default(cuid())
+  orderB2BId   String   @unique
+  noResi       String
+  tanggalKirim DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  orderB2B OrderB2B @relation(fields: [orderB2BId], references: [id], onDelete: Cascade)
+
+  @@map("surat_jalan")
+}
+
+// ---------------------------------------------------------------------------
+// UTANG & PIUTANG
+// ---------------------------------------------------------------------------
+
+model Piutang {
+  id             String      @id @default(cuid())
+  orderPOSId     String?     @unique
+  orderB2BId     String?     @unique
+  pihakNama      String // denormalized: nama Customer/Agen saat piutang dibuat
+  totalTagihan   Decimal     @db.Decimal(15, 2)
+  totalTerbayar  Decimal     @default(0) @db.Decimal(15, 2)
+  jatuhTempo     DateTime
+  status         StatusBayar @default(BELUM_BAYAR)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  orderPOS   OrderPOS?    @relation(fields: [orderPOSId], references: [id])
+  orderB2B   OrderB2B?    @relation(fields: [orderB2BId], references: [id])
+  pembayaran Pembayaran[]
+
+  @@index([status])
+  @@index([jatuhTempo])
+  @@map("piutang")
+}
+
+model Pembelian {
+  id         String   @id @default(cuid())
+  nomor      String   @unique
+  supplierId String
+  outletId   String?
+  userId     String
+  tanggal    DateTime @default(now())
+  keterangan String?
+  total      Decimal  @db.Decimal(15, 2)
+  createdAt  DateTime @default(now())
+
+  supplier Supplier         @relation(fields: [supplierId], references: [id])
+  outlet   Outlet?          @relation(fields: [outletId], references: [id])
+  user     User             @relation(fields: [userId], references: [id])
+  items    PembelianItem[]
+  utang    Utang?
+
+  @@index([supplierId])
+  @@index([createdAt])
+  @@map("pembelian")
+}
+
+model PembelianItem {
+  id          String   @id @default(cuid())
+  pembelianId String
+  bahanBakuId String?
+  kemasanId   String?
+  qty         Decimal  @db.Decimal(15, 3)
+  hargaSatuan Decimal  @db.Decimal(15, 2)
+  subtotal    Decimal  @db.Decimal(15, 2)
+
+  pembelian Pembelian  @relation(fields: [pembelianId], references: [id], onDelete: Cascade)
+  bahanBaku BahanBaku? @relation(fields: [bahanBakuId], references: [id])
+  kemasan   Kemasan?   @relation(fields: [kemasanId], references: [id])
+
+  @@index([pembelianId])
+  @@map("pembelian_items")
+}
+
+model Utang {
+  id            String      @id @default(cuid())
+  sumber        SumberUtang
+  pembelianId   String?     @unique
+  pihakNama     String // nama Supplier / pemberi pinjaman / investor
+  keterangan    String?
+  totalUtang    Decimal     @db.Decimal(15, 2)
+  totalTerbayar Decimal     @default(0) @db.Decimal(15, 2)
+  jatuhTempo    DateTime
+  status        StatusBayar @default(BELUM_BAYAR)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  pembelian  Pembelian?   @relation(fields: [pembelianId], references: [id])
+  pembayaran Pembayaran[]
+
+  @@index([status])
+  @@index([jatuhTempo])
+  @@map("utang")
+}
+
+model Pembayaran {
+  id         String         @id @default(cuid())
+  tipe       TipePembayaran
+  piutangId  String?
+  utangId    String?
+  jumlah     Decimal        @db.Decimal(15, 2)
+  tanggal    DateTime       @default(now())
+  catatan    String?
+  userId     String
+  createdAt  DateTime       @default(now())
+
+  piutang Piutang? @relation(fields: [piutangId], references: [id])
+  utang   Utang?   @relation(fields: [utangId], references: [id])
+  user    User     @relation(fields: [userId], references: [id])
+
+  @@index([piutangId])
+  @@index([utangId])
+  @@map("pembayaran")
+}
+
+// ---------------------------------------------------------------------------
+// PROSES PRODUKSI
+// ---------------------------------------------------------------------------
+
+model ProduksiBatch {
+  id           String   @id @default(cuid())
+  nomor        String   @unique
+  outletId     String
+  userId       String
+  tanggal      DateTime @default(now())
+  totalBiaya   Decimal  @default(0) @db.Decimal(15, 2) // total biaya bahan baku + kemasan terpakai
+  catatan      String?
+  createdAt    DateTime @default(now())
+
+  outlet    Outlet                @relation(fields: [outletId], references: [id])
+  user      User                  @relation(fields: [userId], references: [id])
+  bahanBaku ProduksiBahanBaku[]
+  kemasan   ProduksiKemasan[]
+  output    ProduksiOutput[]
+
+  @@index([outletId])
+  @@index([tanggal])
+  @@map("produksi_batch")
+}
+
+model ProduksiBahanBaku {
+  id              String  @id @default(cuid())
+  produksiBatchId String
+  bahanBakuId     String
+  qtyPakai        Decimal @db.Decimal(15, 3)
+  qtyWaste        Decimal @default(0) @db.Decimal(15, 3)
+  hargaSatuanSaatItu Decimal @db.Decimal(15, 2) // snapshot harga rata-rata bahan baku saat produksi
+
+  produksiBatch ProduksiBatch @relation(fields: [produksiBatchId], references: [id], onDelete: Cascade)
+  bahanBaku     BahanBaku     @relation(fields: [bahanBakuId], references: [id])
+
+  @@index([produksiBatchId])
+  @@map("produksi_bahan_baku")
+}
+
+model ProduksiKemasan {
+  id                 String  @id @default(cuid())
+  produksiBatchId    String
+  kemasanId          String
+  qtyPakai           Decimal @db.Decimal(15, 3)
+  hargaSatuanSaatItu Decimal @db.Decimal(15, 2)
+
+  produksiBatch ProduksiBatch @relation(fields: [produksiBatchId], references: [id], onDelete: Cascade)
+  kemasan       Kemasan       @relation(fields: [kemasanId], references: [id])
+
+  @@index([produksiBatchId])
+  @@map("produksi_kemasan")
+}
+
+model ProduksiOutput {
+  id              String  @id @default(cuid())
+  produksiBatchId String
+  produkJadiId    String
+  qty             Decimal @db.Decimal(15, 3)
+  hppAlokasi      Decimal @default(0) @db.Decimal(15, 2) // total HPP teralokasi utk qty ini (lihat lib/produksi.ts)
+
+  produksiBatch ProduksiBatch @relation(fields: [produksiBatchId], references: [id], onDelete: Cascade)
+  produkJadi    ProdukJadi    @relation(fields: [produkJadiId], references: [id])
+
+  @@index([produksiBatchId])
+  @@map("produksi_output")
+}
+
+// ---------------------------------------------------------------------------
+// INVENTORY — RIWAYAT PERGERAKAN STOK
+// ---------------------------------------------------------------------------
+
+model StokMovementBahanBaku {
+  id          String                @id @default(cuid())
+  bahanBakuId String
+  tipe        TipePergerakanStok
+  qty         Decimal               @db.Decimal(15, 3)
+  sumber      SumberPergerakanStok
+  referensiId String?
+  tanggal     DateTime              @default(now())
+  keterangan  String?
+
+  bahanBaku BahanBaku @relation(fields: [bahanBakuId], references: [id])
+
+  @@index([bahanBakuId])
+  @@index([tanggal])
+  @@map("stok_movement_bahan_baku")
+}
+
+model StokMovementKemasan {
+  id          String                @id @default(cuid())
+  kemasanId   String
+  tipe        TipePergerakanStok
+  qty         Decimal               @db.Decimal(15, 3)
+  sumber      SumberPergerakanStok
+  referensiId String?
+  tanggal     DateTime              @default(now())
+  keterangan  String?
+
+  kemasan Kemasan @relation(fields: [kemasanId], references: [id])
+
+  @@index([kemasanId])
+  @@index([tanggal])
+  @@map("stok_movement_kemasan")
+}
+
+model StokMovementProdukJadi {
+  id           String                @id @default(cuid())
+  produkJadiId String
+  tipe         TipePergerakanStok
+  qty          Decimal               @db.Decimal(15, 3)
+  sumber       SumberPergerakanStok
+  referensiId  String?
+  tanggal      DateTime              @default(now())
+  keterangan   String?
+
+  produkJadi ProdukJadi @relation(fields: [produkJadiId], references: [id])
+
+  @@index([produkJadiId])
+  @@index([tanggal])
+  @@map("stok_movement_produk_jadi")
+}
+
+// ---------------------------------------------------------------------------
+// FINANCE ROOM — MODAL & PENGELUARAN
+// ---------------------------------------------------------------------------
+
+model Modal {
+  id         String          @id @default(cuid())
+  tipe       TipeModal
+  sumberDana SumberDanaModal?
+  jumlah     Decimal         @db.Decimal(15, 2)
+  tanggal    DateTime        @default(now())
+  keterangan String?
+  userId     String
+  createdAt  DateTime        @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([tanggal])
+  @@index([tipe])
+  @@map("modal")
+}
+
+model Pengeluaran {
+  id         String   @id @default(cuid())
+  outletId   String?
+  userId     String
+  kategori   String // GAJI / SEWA / LISTRIK_AIR / TRANSPORTASI / MARKETING / LAINNYA (bebas, searchable)
+  jumlah     Decimal  @db.Decimal(15, 2)
+  tanggal    DateTime @default(now())
+  keterangan String?
+  createdAt  DateTime @default(now())
+
+  outlet Outlet? @relation(fields: [outletId], references: [id])
+  user   User    @relation(fields: [userId], references: [id])
+
+  @@index([tanggal])
+  @@index([kategori])
+  @@map("pengeluaran")
+}
