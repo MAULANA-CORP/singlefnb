@@ -209,7 +209,7 @@ export function DashboardClient({ role }: { role: Role }) {
           <StokMenipisCard items={data.stokMenipis} />
         </div>
         <div className="mt-4">
-          <Link href="/produksi/baru" className="text-sm font-medium text-blue-600 hover:underline dark:text-blue-400">
+          <Link href="/produksi/proses/baru" className="text-sm font-medium text-blue-600 hover:underline dark:text-blue-400">
             + Buat Batch Produksi Baru
           </Link>
         </div>
@@ -221,7 +221,7 @@ export function DashboardClient({ role }: { role: Role }) {
   return (
     <div>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-        <PageHeader title="Dashboard" description="Ringkasan bisnis lintas semua modul." className="mb-0" />
+        <PageHeader title="Dashboard" description="Ringkasan bisnis lintas semua modul." />
         <Select value={selectedOutlet} onValueChange={setSelectedOutlet}>
           <SelectTrigger className="w-[180px] bg-white dark:bg-zinc-900">
             <SelectValue placeholder="Semua Outlet" />

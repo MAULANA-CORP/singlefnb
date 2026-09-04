@@ -44,10 +44,12 @@ export async function resetDataAsli(user: AuthUser, konfirmasi: unknown) {
       await tx.stokMovementBahanBaku.deleteMany({});
       await tx.stokMovementKemasan.deleteMany({});
       await tx.stokMovementProdukJadi.deleteMany({});
-      await tx.produksiOutput.deleteMany({});
-      await tx.produksiKemasan.deleteMany({});
-      await tx.produksiBahanBaku.deleteMany({});
-      await tx.produksiBatch.deleteMany({});
+      await tx.outputProdukJadi.deleteMany({});
+      await tx.outputKemasan.deleteMany({});
+      await tx.outputProses.deleteMany({});
+      await tx.output.deleteMany({});
+      await tx.prosesBahanBaku.deleteMany({});
+      await tx.proses.deleteMany({});
       await tx.piutang.deleteMany({});
       await tx.utang.deleteMany({});
       await tx.pembelianItem.deleteMany({});

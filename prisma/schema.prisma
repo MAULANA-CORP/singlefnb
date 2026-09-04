@@ -103,7 +103,8 @@ model User {
   auditLogs      AuditLog[]
   orderPOS       OrderPOS[]
   orderB2B       OrderB2B[]
-  produksiBatch  ProduksiBatch[]
+  prosesList     Proses[]
+  outputList     Output[]
   pembelian      Pembelian[]
   pembayaran     Pembayaran[]
   modal          Modal[]
@@ -124,7 +125,8 @@ model Outlet {
   users         User[]
   orderPOS      OrderPOS[]
   orderB2B      OrderB2B[]
-  produksiBatch ProduksiBatch[]
+  prosesList    Proses[]
+  outputList    Output[]
   pembelian     Pembelian[]
   pengeluaran   Pengeluaran[]
 
@@ -212,7 +214,7 @@ model BahanBaku {
   updatedAt    DateTime @updatedAt
 
   pembelianItem     PembelianItem[]
-  produksiBahanBaku ProduksiBahanBaku[]
+  prosesBahanBaku ProsesBahanBaku[]
   stokMovement      StokMovementBahanBaku[]
 
   @@index([nama])
@@ -229,7 +231,7 @@ model Kemasan {
   updatedAt   DateTime @updatedAt
 
   pembelianItem  PembelianItem[]
-  produksiKemasan ProduksiKemasan[]
+  outputKemasan OutputKemasan[]
   stokMovement   StokMovementKemasan[]
 
   @@index([nama])
@@ -249,7 +251,7 @@ model ProdukJadi {
 
   orderPOSItem   OrderPOSItem[]
   orderB2BItem   OrderB2BItem[]
-  produksiOutput ProduksiOutput[]
+  outputProdukJadi OutputProdukJadi[]
   stokMovement   StokMovementProdukJadi[]
 
   @@index([nama])
@@ -485,71 +487,114 @@ model Pembayaran {
 }
 
 // ---------------------------------------------------------------------------
-// PROSES PRODUKSI
+// PROSES PRODUKSI — 2 langkah: Proses (input bahan baku) → Output (produk jadi + kemasan)
 // ---------------------------------------------------------------------------
 
-model ProduksiBatch {
-  id           String   @id @default(cuid())
-  nomor        String   @unique
-  outletId     String
-  userId       String
-  tanggal      DateTime @default(now())
-  totalBiaya   Decimal  @default(0) @db.Decimal(15, 2) // total biaya bahan baku + kemasan terpakai
-  catatan      String?
-  createdAt    DateTime @default(now())
+enum StatusProses {
+  DRAFT      // masih input bahan baku
+  SELESAI    // sudah selesai dimasak, siap dijadikan output
+  DIBATALKAN
+}
 
-  outlet    Outlet                @relation(fields: [outletId], references: [id])
-  user      User                  @relation(fields: [userId], references: [id])
-  bahanBaku ProduksiBahanBaku[]
-  kemasan   ProduksiKemasan[]
-  output    ProduksiOutput[]
+model Proses {
+  id         String       @id @default(cuid())
+  nomor      String       @unique
+  outletId   String
+  userId     String
+  tanggal    DateTime     @default(now())
+  nama       String?      // label bebas: "Wajan 1", "Adonan Cabai Pagi"
+  status     StatusProses @default(DRAFT)
+  catatan    String?
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  outlet    Outlet           @relation(fields: [outletId], references: [id])
+  user      User             @relation(fields: [userId], references: [id])
+  bahanBaku ProsesBahanBaku[]
+  outputs   OutputProses[]   // junction → bisa dipakai oleh beberapa Output
 
   @@index([outletId])
   @@index([tanggal])
-  @@map("produksi_batch")
+  @@index([status])
+  @@map("proses")
 }
 
-model ProduksiBahanBaku {
-  id              String  @id @default(cuid())
-  produksiBatchId String
-  bahanBakuId     String
-  qtyPakai        Decimal @db.Decimal(15, 3)
-  qtyWaste        Decimal @default(0) @db.Decimal(15, 3)
-  hargaSatuanSaatItu Decimal @db.Decimal(15, 2) // snapshot harga rata-rata bahan baku saat produksi
+model ProsesBahanBaku {
+  id                  String  @id @default(cuid())
+  prosesId            String
+  bahanBakuId         String
+  qtyPakai            Decimal @db.Decimal(15, 3)
+  qtyWaste            Decimal @default(0) @db.Decimal(15, 3)
+  hargaSatuanSaatItu  Decimal @db.Decimal(15, 2)
 
-  produksiBatch ProduksiBatch @relation(fields: [produksiBatchId], references: [id], onDelete: Cascade)
-  bahanBaku     BahanBaku     @relation(fields: [bahanBakuId], references: [id])
+  proses    Proses    @relation(fields: [prosesId], references: [id], onDelete: Cascade)
+  bahanBaku BahanBaku @relation(fields: [bahanBakuId], references: [id])
 
-  @@index([produksiBatchId])
-  @@map("produksi_bahan_baku")
+  @@index([prosesId])
+  @@map("proses_bahan_baku")
 }
 
-model ProduksiKemasan {
+model Output {
+  id         String   @id @default(cuid())
+  nomor      String   @unique
+  outletId   String
+  userId     String
+  tanggal    DateTime @default(now())
+  totalBiaya Decimal  @default(0) @db.Decimal(15, 2) // HPP total dari semua proses terkait
+  catatan    String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  outlet     Outlet            @relation(fields: [outletId], references: [id])
+  user       User              @relation(fields: [userId], references: [id])
+  proses     OutputProses[]    // junction → bisa gabung dari beberapa Proses
+  produkJadi OutputProdukJadi[]
+  kemasan    OutputKemasan[]
+
+  @@index([outletId])
+  @@index([tanggal])
+  @@map("outputs")
+}
+
+// Junction: Output ↔ Proses (many-to-many)
+model OutputProses {
+  id       String @id @default(cuid())
+  outputId String
+  prosesId String
+
+  output Output @relation(fields: [outputId], references: [id], onDelete: Cascade)
+  proses Proses @relation(fields: [prosesId], references: [id], onDelete: Cascade)
+
+  @@unique([outputId, prosesId])
+  @@map("output_proses")
+}
+
+model OutputProdukJadi {
+  id           String  @id @default(cuid())
+  outputId     String
+  produkJadiId String
+  qty          Decimal @db.Decimal(15, 3)
+  hppAlokasi   Decimal @default(0) @db.Decimal(15, 2)
+
+  output     Output     @relation(fields: [outputId], references: [id], onDelete: Cascade)
+  produkJadi ProdukJadi @relation(fields: [produkJadiId], references: [id])
+
+  @@index([outputId])
+  @@map("output_produk_jadi")
+}
+
+model OutputKemasan {
   id                 String  @id @default(cuid())
-  produksiBatchId    String
+  outputId           String
   kemasanId          String
   qtyPakai           Decimal @db.Decimal(15, 3)
   hargaSatuanSaatItu Decimal @db.Decimal(15, 2)
 
-  produksiBatch ProduksiBatch @relation(fields: [produksiBatchId], references: [id], onDelete: Cascade)
-  kemasan       Kemasan       @relation(fields: [kemasanId], references: [id])
+  output  Output  @relation(fields: [outputId], references: [id], onDelete: Cascade)
+  kemasan Kemasan @relation(fields: [kemasanId], references: [id])
 
-  @@index([produksiBatchId])
-  @@map("produksi_kemasan")
-}
-
-model ProduksiOutput {
-  id              String  @id @default(cuid())
-  produksiBatchId String
-  produkJadiId    String
-  qty             Decimal @db.Decimal(15, 3)
-  hppAlokasi      Decimal @default(0) @db.Decimal(15, 2) // total HPP teralokasi utk qty ini (lihat lib/produksi.ts)
-
-  produksiBatch ProduksiBatch @relation(fields: [produksiBatchId], references: [id], onDelete: Cascade)
-  produkJadi    ProdukJadi    @relation(fields: [produkJadiId], references: [id])
-
-  @@index([produksiBatchId])
-  @@map("produksi_output")
+  @@index([outputId])
+  @@map("output_kemasan")
 }
 
 // ---------------------------------------------------------------------------

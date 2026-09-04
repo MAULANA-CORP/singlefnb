@@ -6,7 +6,7 @@
 // di sini (bukan pembukuan akuntansi formal / double-entry, sesuai catatan PRD §2 & §7.2):
 //
 // 1) COSTING PRODUK JADI (HPP per unit) — dipakai untuk HPP di Laba Rugi & Nilai Stok
-//    di Neraca. `ProduksiOutput.hppAlokasi` adalah HPP TOTAL per batch produksi untuk
+//    di Neraca. `OutputProdukJadi.hppAlokasi` adalah HPP TOTAL per output produksi untuk
 //    qty yang DIPRODUKSI, bukan yang TERJUAL. Karena tidak ada spek metode inventory
 //    costing (FIFO/rata-rata berjalan) di PRD, dipakai pendekatan sederhana:
 //    "rata-rata dari batch produksi TERAKHIR" per Produk Jadi — HPP per unit dihitung
@@ -67,35 +67,35 @@ export interface HppInfo {
  */
 export async function getLatestHppPerUnitMap(): Promise<Map<string, HppInfo>> {
   const prisma = getPrisma();
-  const outputs = await prisma.produksiOutput.findMany({
+  const items = await prisma.outputProdukJadi.findMany({
     select: {
       produkJadiId: true,
-      produksiBatchId: true,
+      outputId: true,
       qty: true,
       hppAlokasi: true,
-      produksiBatch: { select: { tanggal: true, createdAt: true } },
+      output: { select: { tanggal: true, createdAt: true } },
     },
   });
 
-  // Tentukan batch TERAKHIR per produk (by tanggal batch, lalu createdAt batch sbg tie-break)
-  const latestBatch = new Map<string, { batchId: string; tanggal: Date; createdAt: Date }>();
-  for (const o of outputs) {
-    const cur = latestBatch.get(o.produkJadiId);
-    const tanggal = o.produksiBatch.tanggal;
-    const createdAt = o.produksiBatch.createdAt;
+  // Tentukan output TERAKHIR per produk (by tanggal output, lalu createdAt sbg tie-break)
+  const latestOutput = new Map<string, { outputId: string; tanggal: Date; createdAt: Date }>();
+  for (const o of items) {
+    const cur = latestOutput.get(o.produkJadiId);
+    const tanggal = o.output.tanggal;
+    const createdAt = o.output.createdAt;
     if (
       !cur ||
       tanggal.getTime() > cur.tanggal.getTime() ||
       (tanggal.getTime() === cur.tanggal.getTime() && createdAt.getTime() > cur.createdAt.getTime())
     ) {
-      latestBatch.set(o.produkJadiId, { batchId: o.produksiBatchId, tanggal, createdAt });
+      latestOutput.set(o.produkJadiId, { outputId: o.outputId, tanggal, createdAt });
     }
   }
 
   const map = new Map<string, HppInfo>();
-  for (const [produkJadiId, info] of latestBatch) {
-    const relevan = outputs.filter(
-      (o) => o.produkJadiId === produkJadiId && o.produksiBatchId === info.batchId
+  for (const [produkJadiId, info] of latestOutput) {
+    const relevan = items.filter(
+      (o) => o.produkJadiId === produkJadiId && o.outputId === info.outputId
     );
     const totalQty = relevan.reduce((s, o) => s + Number(o.qty), 0);
     const totalHpp = relevan.reduce((s, o) => s + Number(o.hppAlokasi), 0);
@@ -115,7 +115,8 @@ function hppFromMap(map: Map<string, HppInfo>, produkJadiId: string): number {
 /**
  * Biaya satuan terbaru untuk Bahan Baku / Kemasan — dipakai untuk Nilai Stok di Neraca.
  * Diambil dari observasi harga paling baru di antara dua sumber: `PembelianItem.hargaSatuan`
- * (tanggal = tanggal pembelian) dan `Produksi{BahanBaku,Kemasan}.hargaSatuanSaatItu`
+ //    (tanggal = tanggal pembelian) dan `ProsesBahanBaku.hargaSatuanSaatItu` /
+ //    `OutputKemasan.hargaSatuanSaatItu`
  * (tanggal = tanggal batch produksi yang memakainya) — mana pun yang paling baru dipakai.
  */
 async function getLatestUnitCostMap(kind: "bahanBaku" | "kemasan"): Promise<Map<string, number>> {
@@ -130,11 +131,11 @@ async function getLatestUnitCostMap(kind: "bahanBaku" | "kemasan"): Promise<Map<
     for (const it of dariPembelian) {
       observasi.push({ id: it.bahanBakuId as string, harga: Number(it.hargaSatuan), tanggal: it.pembelian.tanggal });
     }
-    const dariProduksi = await prisma.produksiBahanBaku.findMany({
-      select: { bahanBakuId: true, hargaSatuanSaatItu: true, produksiBatch: { select: { tanggal: true } } },
+    const dariProduksi = await prisma.prosesBahanBaku.findMany({
+      select: { bahanBakuId: true, hargaSatuanSaatItu: true, proses: { select: { tanggal: true } } },
     });
     for (const it of dariProduksi) {
-      observasi.push({ id: it.bahanBakuId, harga: Number(it.hargaSatuanSaatItu), tanggal: it.produksiBatch.tanggal });
+      observasi.push({ id: it.bahanBakuId, harga: Number(it.hargaSatuanSaatItu), tanggal: it.proses.tanggal });
     }
   } else {
     const dariPembelian = await prisma.pembelianItem.findMany({
@@ -144,11 +145,11 @@ async function getLatestUnitCostMap(kind: "bahanBaku" | "kemasan"): Promise<Map<
     for (const it of dariPembelian) {
       observasi.push({ id: it.kemasanId as string, harga: Number(it.hargaSatuan), tanggal: it.pembelian.tanggal });
     }
-    const dariProduksi = await prisma.produksiKemasan.findMany({
-      select: { kemasanId: true, hargaSatuanSaatItu: true, produksiBatch: { select: { tanggal: true } } },
+    const dariProduksi = await prisma.outputKemasan.findMany({
+      select: { kemasanId: true, hargaSatuanSaatItu: true, output: { select: { tanggal: true } } },
     });
     for (const it of dariProduksi) {
-      observasi.push({ id: it.kemasanId, harga: Number(it.hargaSatuanSaatItu), tanggal: it.produksiBatch.tanggal });
+      observasi.push({ id: it.kemasanId, harga: Number(it.hargaSatuanSaatItu), tanggal: it.output.tanggal });
     }
   }
 

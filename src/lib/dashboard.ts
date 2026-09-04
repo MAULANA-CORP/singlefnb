@@ -184,7 +184,7 @@ export interface ProduksiTerakhir {
 
 async function produksiTerakhir(): Promise<ProduksiTerakhir | null> {
   const prisma = getPrisma();
-  const batch = await prisma.produksiBatch.findFirst({
+  const batch = await prisma.proses.findFirst({
     orderBy: { createdAt: "desc" },
     include: { outlet: { select: { nama: true } }, bahanBaku: { select: { qtyPakai: true, qtyWaste: true } } },
   });

@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { withOwnerProduksi, apiError, catatAudit } from "@/lib/api-helpers";
 import { getPrisma } from "@/lib/prisma";
-import { buatBatchProduksi, ProduksiValidationError } from "@/lib/produksi";
+import { buatOutput, ProduksiValidationError } from "@/lib/produksi";
 
-/** GET /api/produksi — daftar batch produksi (filter: outletId, dari, sampai) */
+/** GET /api/produksi/output — daftar output produksi (filter: outletId, dari, sampai) */
 export const GET = withOwnerProduksi(async (_user, req) => {
   try {
     const prisma = getPrisma();
@@ -21,42 +21,44 @@ export const GET = withOwnerProduksi(async (_user, req) => {
       where.tanggal = rentang;
     }
 
-    const batches = await prisma.produksiBatch.findMany({
+    const list = await prisma.output.findMany({
       where,
-      orderBy: { tanggal: "desc" },
+      orderBy: { createdAt: "desc" },
       take: 200,
       include: {
         outlet: { select: { id: true, nama: true } },
         user: { select: { id: true, nama: true } },
-        bahanBaku: { select: { id: true, qtyPakai: true, qtyWaste: true, hargaSatuanSaatItu: true } },
-        kemasan: { select: { id: true, qtyPakai: true, hargaSatuanSaatItu: true } },
-        output: {
-          select: {
-            id: true,
-            qty: true,
-            hppAlokasi: true,
+        proses: {
+          include: {
+            proses: { select: { id: true, nomor: true, nama: true } },
+          },
+        },
+        produkJadi: {
+          include: {
             produkJadi: { select: { id: true, nama: true, satuan: true } },
           },
         },
+        kemasan: { select: { id: true, qtyPakai: true, hargaSatuanSaatItu: true } },
       },
     });
 
-    const data = batches.map((b) => ({
-      id: b.id,
-      nomor: b.nomor,
-      tanggal: b.tanggal,
-      catatan: b.catatan,
-      totalBiaya: Number(b.totalBiaya),
-      outlet: b.outlet,
-      user: b.user,
-      jumlahBahanBaku: b.bahanBaku.length,
-      jumlahKemasan: b.kemasan.length,
-      output: b.output.map((o) => ({
-        id: o.id,
-        produkJadi: o.produkJadi,
-        qty: Number(o.qty),
-        hppAlokasi: Number(o.hppAlokasi),
+    const data = list.map((o) => ({
+      id: o.id,
+      nomor: o.nomor,
+      tanggal: o.tanggal,
+      catatan: o.catatan,
+      totalBiaya: Number(o.totalBiaya),
+      outlet: o.outlet,
+      user: o.user,
+      jumlahProses: o.proses.length,
+      proses: o.proses.map((op) => op.proses),
+      produkJadi: o.produkJadi.map((op) => ({
+        id: op.id,
+        produkJadi: op.produkJadi,
+        qty: Number(op.qty),
+        hppAlokasi: Number(op.hppAlokasi),
       })),
+      jumlahKemasan: o.kemasan.length,
     }));
 
     return NextResponse.json({ data });
@@ -65,7 +67,7 @@ export const GET = withOwnerProduksi(async (_user, req) => {
   }
 });
 
-/** POST /api/produksi — buat batch produksi baru (transaksi penuh, lihat lib/produksi.ts) */
+/** POST /api/produksi/output — buat output baru (hitung HPP, kurangi stok kemasan, tambah stok produk jadi) */
 export const POST = withOwnerProduksi(async (user, req) => {
   try {
     const body = await req.json();
@@ -75,20 +77,15 @@ export const POST = withOwnerProduksi(async (user, req) => {
       return NextResponse.json({ error: "Outlet wajib dipilih." }, { status: 400 });
     }
 
-    const bahanBakuLines = Array.isArray(body.bahanBaku) ? body.bahanBaku : [];
+    const prosesIds = Array.isArray(body.prosesIds) ? body.prosesIds.map(String) : [];
     const kemasanLines = Array.isArray(body.kemasan) ? body.kemasan : [];
-    const outputLines = Array.isArray(body.output) ? body.output : [];
+    const outputLines = Array.isArray(body.produkJadi) ? body.produkJadi : Array.isArray(body.output) ? body.output : [];
 
-    const batch = await buatBatchProduksi({
+    const result = await buatOutput({
       outletId,
       userId: user.id,
       catatan: typeof body.catatan === "string" ? body.catatan.trim() : undefined,
-      bahanBaku: bahanBakuLines.map((l: Record<string, unknown>) => ({
-        bahanBakuId: String(l.bahanBakuId ?? ""),
-        qtyPakai: Number(l.qtyPakai),
-        qtyWaste: l.qtyWaste != null && l.qtyWaste !== "" ? Number(l.qtyWaste) : 0,
-        hargaSatuanSaatItu: Number(l.hargaSatuanSaatItu),
-      })),
+      prosesIds,
       kemasan: kemasanLines.map((l: Record<string, unknown>) => ({
         kemasanId: String(l.kemasanId ?? ""),
         qtyPakai: Number(l.qtyPakai),
@@ -103,12 +100,12 @@ export const POST = withOwnerProduksi(async (user, req) => {
     await catatAudit({
       userId: user.id,
       aksi: "CREATE",
-      entitas: "ProduksiBatch",
-      entitasId: batch.id,
-      detail: { nomor: batch.nomor, totalBiaya: batch.totalBiaya },
+      entitas: "Output",
+      entitasId: result.id,
+      detail: { nomor: result.nomor, totalBiaya: result.totalBiaya },
     });
 
-    return NextResponse.json({ data: { id: batch.id, nomor: batch.nomor } }, { status: 201 });
+    return NextResponse.json({ data: { id: result.id, nomor: result.nomor } }, { status: 201 });
   } catch (error) {
     if (error instanceof ProduksiValidationError) {
       return NextResponse.json({ error: error.message }, { status: 400 });

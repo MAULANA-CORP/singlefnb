@@ -9,7 +9,8 @@ export const GET = withOwnerFinance(async (_user, req) => {
     const { searchParams } = new URL(req.url);
     const take = Math.min(Number(searchParams.get("take") ?? 20) || 20, 100);
 
-    const pembelian = await getPrisma().pembelian.findMany({ take: 200, include: {
+    const pembelian = await getPrisma().pembelian.findMany({
+      include: {
         supplier: { select: { nama: true } },
         outlet: { select: { nama: true } },
         items: true,

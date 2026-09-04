@@ -30,7 +30,7 @@ export class B2BError extends Error {
 }
 
 type StatusBayar = "LUNAS" | "PARSIAL" | "BELUM_BAYAR";
-type StatusOrderB2B = "DRAFT" | "INVOICE" | "DIKIRIM" | "PARSIAL" | "LUNAS" | "BATAL";
+type StatusOrderB2B = "DRAFT" | "INVOICE" | "DIKIRIM" | "PARSIAL" | "LUNAS" | "SELESAI" | "BATAL";
 
 /** Status headline order = turunan dari invoice/surat-jalan/status-bayar, bukan ditulis manual. */
 export function hitungStatusOrder(params: {

@@ -55,7 +55,7 @@ export function LaporanPiutangClient() {
         setLoading(false);
       }
     },
-    [hanyaOverdue]
+    [filterOverdue]
   );
 
   React.useEffect(() => {
