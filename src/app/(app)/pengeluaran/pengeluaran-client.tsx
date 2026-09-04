@@ -60,7 +60,7 @@ export function PengeluaranClient() {
   const [kategoriCustom, setKategoriCustom] = React.useState("");
   const [jumlah, setJumlah] = React.useState("");
   const [tanggal, setTanggal] = React.useState(todayStr());
-  const [outletId, setOutletId] = React.useState<string | null>(null);
+  const [outletId, setOutletId] = React.useState<string | null>(outlets[0]?.id ?? null);
   const [keterangan, setKeterangan] = React.useState("");
 
   React.useEffect(() => {

@@ -10,7 +10,7 @@ export default async function AppGroupLayout({ children }: { children: React.Rea
   const pengaturan = await getPrisma().pengaturan.findUnique({ where: { id: "singleton" } });
 
   return (
-    <AppLayout nama={user.nama} role={user.role} namaToko={pengaturan?.namaToko ?? "Gampangin FNB"}>
+    <AppLayout nama={user.nama} role={user.role} namaToko={pengaturan?.namaToko ?? "Gampangin FNB"} logoUrl={pengaturan?.logoUrl ?? null}>
       {children}
     </AppLayout>
   );

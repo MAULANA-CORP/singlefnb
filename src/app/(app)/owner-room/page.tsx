@@ -25,7 +25,7 @@ export default function OwnerRoomPage() {
           <TabsTrigger value="pengaturan">Pengaturan Toko</TabsTrigger>
           <TabsTrigger value="user">User Management</TabsTrigger>
           <TabsTrigger value="audit">Audit Log</TabsTrigger>
-          <TabsTrigger value="reset">Reset Data</TabsTrigger>
+          <TabsTrigger value="reset">Reset & Fill Data</TabsTrigger>
         </TabsList>
 
         <TabsContent value="pengaturan">

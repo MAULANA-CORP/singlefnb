@@ -15,7 +15,7 @@ import { firstOfMonthStr, todayStr, type LabaRugiResult, type OutletOption } fro
 export function LabaRugiPanel({ outlets }: { outlets: OutletOption[] }) {
   const [start, setStart] = React.useState(firstOfMonthStr());
   const [end, setEnd] = React.useState(todayStr());
-  const [outletId, setOutletId] = React.useState<string | null>(null);
+  const [outletId, setOutletId] = React.useState<string | null>(outlets[0]?.id ?? null);
   const [data, setData] = React.useState<LabaRugiResult | null>(null);
   const [loading, setLoading] = React.useState(true);
 

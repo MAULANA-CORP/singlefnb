@@ -147,13 +147,17 @@ export interface ItemPembelianInput {
   hargaSatuan: number;
 }
 
+export type CaraBayarValue = "CASH" | "CREDIT" | "SPLIT";
+
 export interface BuatPembelianInput {
   supplierId: string;
   outletId?: string | null;
   tanggal?: string; // ISO date
   keterangan?: string | null;
   items: ItemPembelianInput[];
-  jatuhTempo: string; // ISO date
+  jatuhTempo?: string; // ISO date — wajib untuk CREDIT/SPLIT
+  caraBayar?: CaraBayarValue; // default CREDIT
+  jumlahBayar?: number; // cash amount untuk SPLIT
 }
 
 function validasiItemPembelian(items: ItemPembelianInput[]) {
@@ -177,17 +181,25 @@ function validasiItemPembelian(items: ItemPembelianInput[]) {
  * Catat Pembelian baru dari Supplier dalam satu transaksi:
  * - Buat Pembelian + PembelianItem[].
  * - Tambah stok BahanBaku/Kemasan sesuai item + catat StokMovement (IN, sumber PEMBELIAN).
- * - Buat Utang terkait (sumber PEMBELIAN, pihakNama = nama supplier, totalUtang = total pembelian).
+ * - Buat Utang terkait berdasarkan cara bayar:
+ *   - CASH: Tidak ada utang.
+ *   - CREDIT (default): Utang penuh.
+ *   - SPLIT: Utang sisa, sebagian cash langsung dilunasi.
  */
 export async function buatPembelian(user: AuthUser, input: BuatPembelianInput) {
   validasiItemPembelian(input.items);
 
-  const jatuhTempo = new Date(input.jatuhTempo);
-  if (Number.isNaN(jatuhTempo.getTime())) {
-    throw new UtangPiutangError("Tanggal jatuh tempo tidak valid");
-  }
+  const caraBayar: CaraBayarValue = input.caraBayar ?? "CREDIT";
   const tanggal = input.tanggal ? new Date(input.tanggal) : new Date();
   if (Number.isNaN(tanggal.getTime())) throw new UtangPiutangError("Tanggal pembelian tidak valid");
+
+  // Jatuh tempo wajib untuk CREDIT dan SPLIT
+  let jatuhTempo: Date | null = null;
+  if (caraBayar === "CREDIT" || caraBayar === "SPLIT") {
+    if (!input.jatuhTempo) throw new UtangPiutangError("Tanggal jatuh tempo wajib diisi untuk pembayaran kredit/split");
+    jatuhTempo = new Date(input.jatuhTempo);
+    if (Number.isNaN(jatuhTempo.getTime())) throw new UtangPiutangError("Tanggal jatuh tempo tidak valid");
+  }
 
   const prisma = getPrisma();
   const supplier = await prisma.supplier.findUnique({ where: { id: input.supplierId } });
@@ -200,6 +212,24 @@ export async function buatPembelian(user: AuthUser, input: BuatPembelianInput) {
 
   const total = input.items.reduce((sum, it) => sum + Number(it.qty) * Number(it.hargaSatuan), 0);
   const nomor = buatNomorDokumen("PB");
+
+  // Hitung jumlah cash & utang
+  let jumlahCash = 0;
+  let jumlahUtang = 0;
+  if (caraBayar === "CASH") {
+    jumlahCash = total;
+    jumlahUtang = 0;
+  } else if (caraBayar === "SPLIT") {
+    jumlahCash = Math.min(Number(input.jumlahBayar) || 0, total);
+    jumlahUtang = Math.max(0, total - jumlahCash);
+    if (jumlahUtang <= 0) {
+      throw new UtangPiutangError("Jumlah cash sudah melebihi/sama total — pilih CASH jika bayar lunas");
+    }
+  } else {
+    // CREDIT
+    jumlahCash = 0;
+    jumlahUtang = total;
+  }
 
   const { pembelian, utang } = await prisma.$transaction(async (tx) => {
     const pembelianBaru = await tx.pembelian.create({
@@ -228,9 +258,20 @@ export async function buatPembelian(user: AuthUser, input: BuatPembelianInput) {
       if (item.bahanBakuId) {
         const bb = await tx.bahanBaku.findUnique({ where: { id: item.bahanBakuId } });
         if (!bb) throw new UtangPiutangError("Salah satu Bahan Baku tidak ditemukan");
+
+        // Hitung average cost: (hargaLama × stokLama + hargaBaru × qtyBaru) / (stokLama + qtyBaru)
+        const stokLama = Number(bb.stok);
+        const hargaLama = Number(bb.hargaRataRata);
+        const qtyBaru = Number(item.qty);
+        const hargaBaru = Number(item.hargaSatuan);
+        const stokBaru = stokLama + qtyBaru;
+        const hargaRataRataBaru = stokBaru > 0
+          ? Math.round(((hargaLama * stokLama + hargaBaru * qtyBaru) / stokBaru) * 100) / 100
+          : hargaBaru;
+
         await tx.bahanBaku.update({
           where: { id: item.bahanBakuId },
-          data: { stok: { increment: item.qty } },
+          data: { stok: { increment: item.qty }, hargaRataRata: hargaRataRataBaru },
         });
         await tx.stokMovementBahanBaku.create({
           data: {
@@ -264,16 +305,43 @@ export async function buatPembelian(user: AuthUser, input: BuatPembelianInput) {
       }
     }
 
+    // CASH: tidak ada utang
+    if (caraBayar === "CASH") {
+      return { pembelian: pembelianBaru, utang: null };
+    }
+
+    // CREDIT atau SPLIT: buat utang
+    const statusUtang = jumlahUtang <= 0.01 ? "LUNAS" : "BELUM_BAYAR";
     const utangBaru = await tx.utang.create({
       data: {
         sumber: "PEMBELIAN",
         pembelianId: pembelianBaru.id,
         pihakNama: supplier.nama,
-        totalUtang: total,
-        jatuhTempo,
-        status: "BELUM_BAYAR",
+        totalUtang: jumlahUtang,
+        jatuhTempo: jatuhTempo!,
+        status: statusUtang,
       },
     });
+
+    // SPLIT: langsung catat pembayaran cash sebagai cicilan pertama
+    if (caraBayar === "SPLIT" && jumlahCash > 0) {
+      const totalTerbayar = jumlahCash;
+      const statusBayar = hitungStatusBayar(jumlahUtang, totalTerbayar);
+      await tx.pembayaran.create({
+        data: {
+          tipe: "UTANG",
+          utangId: utangBaru.id,
+          jumlah: jumlahCash,
+          tanggal,
+          catatan: `Bayar cash saat belanja (${nomor})`,
+          userId: user.id,
+        },
+      });
+      await tx.utang.update({
+        where: { id: utangBaru.id },
+        data: { totalTerbayar, status: statusBayar },
+      });
+    }
 
     return { pembelian: pembelianBaru, utang: utangBaru };
   });
@@ -283,15 +351,17 @@ export async function buatPembelian(user: AuthUser, input: BuatPembelianInput) {
     aksi: "CREATE",
     entitas: "Pembelian",
     entitasId: pembelian.id,
-    detail: { nomor, total, supplierId: input.supplierId },
+    detail: { nomor, total, supplierId: input.supplierId, caraBayar },
   });
-  await catatAudit({
-    userId: user.id,
-    aksi: "CREATE",
-    entitas: "Utang",
-    entitasId: utang.id,
-    detail: { sumber: "PEMBELIAN", totalUtang: total, pembelianId: pembelian.id },
-  });
+  if (utang) {
+    await catatAudit({
+      userId: user.id,
+      aksi: "CREATE",
+      entitas: "Utang",
+      entitasId: utang.id,
+      detail: { sumber: "PEMBELIAN", totalUtang: jumlahUtang, pembelianId: pembelian.id },
+    });
+  }
 
   return { pembelian, utang };
 }

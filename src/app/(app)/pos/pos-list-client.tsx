@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { StatusBadge } from "@/components/ui/badge";
 import { EmptyState, LoadingSkeleton } from "@/components/ui/empty-state";
 import { SearchableSelect } from "@/components/ui/searchable-select";
+import { Pagination } from "@/components/ui/pagination";
 import { formatRupiah, formatTanggalJam } from "@/lib/utils";
 import {
   METODE_BAYAR_LABEL,
@@ -18,6 +19,8 @@ import {
   STATUS_BAYAR_OPTIONS,
   type OrderPOSListItem,
 } from "./_lib";
+
+const PAGE_SIZE = 15;
 
 export function PosListClient({ canCreate }: { canCreate: boolean }) {
   const router = useRouter();
@@ -30,6 +33,7 @@ export function PosListClient({ canCreate }: { canCreate: boolean }) {
   const [outletId, setOutletId] = React.useState<string | null>(null);
   const [filterDari, setFilterDari] = React.useState("");
   const [filterSampai, setFilterSampai] = React.useState("");
+  const [page, setPage] = React.useState(1);
 
   const loadOrders = React.useCallback(async () => {
     setLoading(true);
@@ -64,7 +68,11 @@ export function PosListClient({ canCreate }: { canCreate: boolean }) {
   React.useEffect(() => {
     fetch("/api/pos/outlets")
       .then((r) => r.json())
-      .then((d) => setOutlets(d.outlets ?? []))
+      .then((d) => {
+        const list = d.outlets ?? [];
+        setOutlets(list);
+        if (list.length > 0) setOutletId(list[0].id);
+      })
       .catch(() => {});
   }, []);
 
@@ -72,14 +80,20 @@ export function PosListClient({ canCreate }: { canCreate: boolean }) {
   const statusOptions = [{ value: "", label: "Semua Status" }, ...STATUS_BAYAR_OPTIONS];
   const metodeOptions = [{ value: "", label: "Semua Metode" }, ...METODE_BAYAR_OPTIONS];
 
+  // Reset page when filters change
+  React.useEffect(() => { setPage(1); }, [search, status, metodeBayar, outletId, filterDari, filterSampai]);
+
+  const totalPages = Math.ceil(orders.length / PAGE_SIZE);
+  const paginatedOrders = orders.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
   return (
     <div>
       <PageHeader
-        title="POS (Retail)"
-        description="Order penjualan langsung ke konsumen akhir."
+        title="POS (Retail) — History"
+        description="Daftar order penjualan langsung ke konsumen akhir."
         action={
           canCreate ? (
-            <Button onClick={() => router.push("/pos/baru")}>
+            <Button onClick={() => router.push("/pos")}>
               <Plus className="h-4 w-4" />
               Buat Order Baru
             </Button>
@@ -137,7 +151,7 @@ export function PosListClient({ canCreate }: { canCreate: boolean }) {
             description="Order penjualan retail yang kamu buat akan muncul di sini."
             action={
               canCreate ? (
-                <Button onClick={() => router.push("/pos/baru")}>
+                <Button onClick={() => router.push("/pos")}>
                   <Plus className="h-4 w-4" />
                   Buat Order Baru
                 </Button>
@@ -146,38 +160,41 @@ export function PosListClient({ canCreate }: { canCreate: boolean }) {
           />
         </Card>
       ) : (
-        <div className="space-y-2">
-          {orders.map((order) => (
-            <button
-              key={order.id}
-              onClick={() => router.push(`/pos/${order.id}`)}
-              className="flex w-full min-h-[44px] items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white p-4 text-left transition-colors hover:bg-gray-50 dark:border-zinc-700 dark:bg-zinc-800 dark:hover:bg-zinc-700"
-            >
-              <div className="flex min-w-0 items-start gap-3">
-                <div className="mt-0.5 rounded-lg bg-blue-100 p-2 dark:bg-blue-900/40">
-                  <ShoppingCart className="h-4 w-4 text-blue-700 dark:text-blue-300" />
-                </div>
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-medium text-gray-900 dark:text-gray-50">{order.nomor}</span>
-                    <StatusBadge status={order.statusBayar} />
+        <>
+          <div className="space-y-2">
+            {paginatedOrders.map((order) => (
+              <button
+                key={order.id}
+                onClick={() => router.push(`/pos/${order.id}`)}
+                className="flex w-full min-h-[44px] items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white p-4 text-left transition-colors hover:bg-gray-50 dark:border-zinc-700 dark:bg-zinc-800 dark:hover:bg-zinc-700"
+              >
+                <div className="flex min-w-0 items-start gap-3">
+                  <div className="mt-0.5 rounded-lg bg-blue-100 p-2 dark:bg-blue-900/40">
+                    <ShoppingCart className="h-4 w-4 text-blue-700 dark:text-blue-300" />
                   </div>
-                  <p className="mt-0.5 truncate text-sm text-gray-600 dark:text-gray-400">
-                    {order.customer?.nama ?? "-"} &middot; {order.outlet?.nama ?? "-"}
-                  </p>
-                  <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-500">
-                    {formatTanggalJam(order.createdAt)} &middot; {METODE_BAYAR_LABEL[order.metodeBayar]} &middot;{" "}
-                    {order.items.length} item
-                  </p>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-medium text-gray-900 dark:text-gray-50">{order.nomor}</span>
+                      <StatusBadge status={order.statusBayar} />
+                    </div>
+                    <p className="mt-0.5 truncate text-sm text-gray-600 dark:text-gray-400">
+                      {order.customer?.nama ?? "-"} &middot; {order.outlet?.nama ?? "-"}
+                    </p>
+                    <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-500">
+                      {formatTanggalJam(order.createdAt)} &middot; {METODE_BAYAR_LABEL[order.metodeBayar]} &middot;{" "}
+                      {order.items.length} item
+                    </p>
+                  </div>
                 </div>
-              </div>
-              <div className="flex shrink-0 items-center gap-2">
-                <span className="font-semibold text-gray-900 dark:text-gray-50">{formatRupiah(order.total)}</span>
-                <ChevronRight className="h-4 w-4 text-gray-400" />
-              </div>
-            </button>
-          ))}
-        </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <span className="font-semibold text-gray-900 dark:text-gray-50">{formatRupiah(order.total)}</span>
+                  <ChevronRight className="h-4 w-4 text-gray-400" />
+                </div>
+              </button>
+            ))}
+          </div>
+          <Pagination page={page} totalItems={orders.length} pageSize={PAGE_SIZE} onPageChange={setPage} />
+        </>
       )}
     </div>
   );

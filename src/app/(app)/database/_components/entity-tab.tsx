@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, ConfirmDialog } from "@/components/ui/dialog";
 import { EmptyState, LoadingSkeleton } from "@/components/ui/empty-state";
+import { Pagination } from "@/components/ui/pagination";
 import { formatRupiah, formatAngka, formatTanggal } from "@/lib/utils";
 import type { Role } from "@/lib/session";
 import type { EntityUiConfig } from "../_lib/entity-config";
@@ -31,6 +32,9 @@ export function EntityTab({ entity, role }: { entity: EntityUiConfig; role: Role
   const [loading, setLoading] = React.useState(true);
   const [search, setSearch] = React.useState("");
   const debouncedSearch = useDebounced(search);
+  const [page, setPage] = React.useState(1);
+
+  const PAGE_SIZE = 20;
 
   const [formOpen, setFormOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<Row | null>(null);
@@ -64,6 +68,9 @@ export function EntityTab({ entity, role }: { entity: EntityUiConfig; role: Role
   React.useEffect(() => {
     load();
   }, [load]);
+
+  // Reset page when search changes
+  React.useEffect(() => { setPage(1); }, [debouncedSearch]);
 
   function openCreate() {
     setEditing(null);
@@ -148,6 +155,10 @@ export function EntityTab({ entity, role }: { entity: EntityUiConfig; role: Role
 
   const columns = entity.fields.filter((f) => f.key !== "nama");
 
+  // Pagination
+  const totalPages = Math.ceil(rows.length / PAGE_SIZE);
+  const paginatedRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
   return (
     <div>
       <Card>
@@ -192,6 +203,7 @@ export function EntityTab({ entity, role }: { entity: EntityUiConfig; role: Role
             }
           />
         ) : (
+          <>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[560px] text-sm">
               <thead>
@@ -213,7 +225,7 @@ export function EntityTab({ entity, role }: { entity: EntityUiConfig; role: Role
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row) => (
+                {paginatedRows.map((row) => (
                   <tr
                     key={row.id}
                     className="border-b border-gray-100 last:border-0 hover:bg-gray-50 dark:border-zinc-800 dark:hover:bg-zinc-900/50"
@@ -268,6 +280,8 @@ export function EntityTab({ entity, role }: { entity: EntityUiConfig; role: Role
               </tbody>
             </table>
           </div>
+          <Pagination page={page} totalItems={rows.length} pageSize={PAGE_SIZE} onPageChange={setPage} />
+          </>
         )}
       </Card>
 

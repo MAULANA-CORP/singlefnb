@@ -14,7 +14,7 @@ import { todayStr, type NeracaResult, type OutletOption } from "./_lib";
 
 export function NeracaPanel({ outlets }: { outlets: OutletOption[] }) {
   const [asOf, setAsOf] = React.useState(todayStr());
-  const [outletId, setOutletId] = React.useState<string | null>(null);
+  const [outletId, setOutletId] = React.useState<string | null>(outlets[0]?.id ?? null);
   const [data, setData] = React.useState<NeracaResult | null>(null);
   const [loading, setLoading] = React.useState(true);
 

@@ -218,7 +218,7 @@ export function OrderDetailClient({ orderId, role }: { orderId: string; role: "O
     <div>
       <div className="mb-4">
         <Link
-          href="/b2b"
+          href="/b2b/history"
           className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
         >
           <ArrowLeft className="h-4 w-4" />

@@ -27,7 +27,7 @@ export default async function BuatOrderB2BPage() {
   return (
     <OrderFormClient
       defaultOutletId={user.outletId}
-      agenList={agenList.map((a) => ({ id: a.id, nama: a.nama, kontak: a.kontak, alamat: a.alamat }))}
+      agenList={agenList.map((a) => ({ id: a.id, nama: a.nama, kontak: a.kontak, noHP: a.noHP, alamat: a.alamat }))}
       outletList={outletList.map((o) => ({ id: o.id, nama: o.nama }))}
       produkList={produkList.map((p) => ({
         id: p.id,

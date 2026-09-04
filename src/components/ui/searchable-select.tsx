@@ -5,7 +5,7 @@
 import * as React from "react";
 import * as Popover from "@radix-ui/react-popover";
 import { Command } from "cmdk";
-import { Check, ChevronsUpDown, X } from "lucide-react";
+import { Check, ChevronsUpDown, X, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface SelectOption {
@@ -26,6 +26,10 @@ interface BaseProps {
   required?: boolean;
   error?: string;
   onSearch?: (query: string) => void;
+  /** Jika diset, tampilkan opsi "Entry Baru: {query}" di bawah list */
+  createText?: string;
+  /** Dipanggil saat user klik "Entry Baru" */
+  onCreateNew?: (query: string) => void;
 }
 
 interface SingleProps extends BaseProps {
@@ -52,6 +56,8 @@ export function SearchableSelect(props: SingleProps | MultiProps) {
     required,
     error,
     onSearch,
+    createText,
+    onCreateNew,
   } = props;
 
   const [open, setOpen] = React.useState(false);
@@ -66,6 +72,13 @@ export function SearchableSelect(props: SingleProps | MultiProps) {
     ? options.filter((o) => props.value.includes(o.value))
     : [];
 
+  // Cek apakah query cocok dengan salah satu opsi yang ada
+  const queryMatchesOption = options.some(
+    (o) => o.label.toLowerCase() === query.toLowerCase()
+  );
+  const showCreateOption =
+    createText && onCreateNew && query.trim().length > 0 && !queryMatchesOption;
+
   function handleSelect(value: string) {
     if (props.multiple) {
       const next = props.value.includes(value)
@@ -74,6 +87,14 @@ export function SearchableSelect(props: SingleProps | MultiProps) {
       props.onChange(next);
     } else {
       props.onChange(value === props.value ? null : value);
+      setOpen(false);
+      setQuery("");
+    }
+  }
+
+  function handleCreateNew() {
+    if (onCreateNew && query.trim()) {
+      onCreateNew(query.trim());
       setOpen(false);
       setQuery("");
     }
@@ -203,6 +224,24 @@ export function SearchableSelect(props: SingleProps | MultiProps) {
                     </Command.Item>
                   );
                 })}
+
+                {/* Opsi "Entry Baru" */}
+                {showCreateOption && (
+                  <Command.Item
+                    value={`__create__ ${query}`}
+                    onSelect={handleCreateNew}
+                    className={cn(
+                      "flex cursor-pointer items-center gap-2 rounded px-2 py-2 text-sm",
+                      "text-blue-600 dark:text-blue-400",
+                      "data-[selected=true]:bg-blue-50 dark:data-[selected=true]:bg-blue-900/20"
+                    )}
+                  >
+                    <Plus className="h-4 w-4 shrink-0" />
+                    <span className="truncate font-medium">
+                      {createText} "{query}"
+                    </span>
+                  </Command.Item>
+                )}
               </Command.List>
             </Command>
           </Popover.Content>

@@ -3,13 +3,14 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Trash2, UserPlus, ArrowLeft } from "lucide-react";
+import { Plus, Trash2, ArrowLeft } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
 import { SearchableSelect, type SelectOption } from "@/components/ui/searchable-select";
 import { Dialog } from "@/components/ui/dialog";
+
 import { formatRupiah } from "@/lib/utils";
 import { METODE_BAYAR_OPTIONS, KREDIT_TIPE_OPTIONS } from "../_lib";
 
@@ -46,7 +47,7 @@ export function OrderPOSForm() {
   const [loadingMeta, setLoadingMeta] = React.useState(true);
 
   const [customerId, setCustomerId] = React.useState<string | null>(null);
-  const [outletId, setOutletId] = React.useState<string | null>(null);
+  const [outletId, setOutletId] = React.useState<string | null>(outlets[0]?.id ?? null);
   const [items, setItems] = React.useState<LineItem[]>([]);
   const [pilihProduk, setPilihProduk] = React.useState<string | null>(null);
   const [metodeBayar, setMetodeBayar] = React.useState<string>("CASH");
@@ -56,13 +57,11 @@ export function OrderPOSForm() {
   const [catatan, setCatatan] = React.useState("");
   const [saving, setSaving] = React.useState(false);
 
-  // Modal tambah customer baru
-  const [modalOpen, setModalOpen] = React.useState(false);
-  const [namaBaru, setNamaBaru] = React.useState("");
-  const [kontakBaru, setKontakBaru] = React.useState("");
-  const [alamatBaru, setAlamatBaru] = React.useState("");
+  // Inline customer creation
+  const [newCustomerOpen, setNewCustomerOpen] = React.useState(false);
+  const [newCustomerNama, setNewCustomerNama] = React.useState("");
+  const [newCustomerHP, setNewCustomerHP] = React.useState("");
   const [savingCustomer, setSavingCustomer] = React.useState(false);
-  const [duplikat, setDuplikat] = React.useState<Customer | null>(null);
 
   React.useEffect(() => {
     async function loadMeta() {
@@ -75,7 +74,11 @@ export function OrderPOSForm() {
         ]);
         const [cData, oData, pData] = await Promise.all([cRes.json(), oRes.json(), pRes.json()]);
         if (cRes.ok) setCustomers(cData.items ?? []);
-        if (oRes.ok) setOutlets(oData.outlets ?? []);
+        if (oRes.ok) {
+          const list = oData.outlets ?? [];
+          setOutlets(list);
+          if (list.length > 0) setOutletId(list[0].id);
+        }
         if (pRes.ok) setProdukList(pData.produk ?? []);
       } catch {
         toast.error("Gagal memuat data awal (customer/outlet/produk)");
@@ -98,6 +101,41 @@ export function OrderPOSForm() {
     hint: `Stok ${p.stok} ${p.satuan} • ${formatRupiah(p.harga)}`,
     disabled: p.stok <= 0,
   }));
+
+  // Handle "Entry Baru" customer
+  function handleCreateCustomer(query: string) {
+    setNewCustomerNama(query);
+    setNewCustomerHP("");
+    setNewCustomerOpen(true);
+  }
+
+  async function handleSaveNewCustomer() {
+    if (!newCustomerNama.trim()) {
+      toast.error("Nama wajib diisi");
+      return;
+    }
+    setSavingCustomer(true);
+    try {
+      const res = await fetch("/api/database/customers/quick", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nama: newCustomerNama, noHP: newCustomerHP }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error ?? "Gagal membuat customer");
+        return;
+      }
+      setCustomers((prev) => [data.data, ...prev]);
+      setCustomerId(data.data.id);
+      setNewCustomerOpen(false);
+      toast.success(`Customer "${data.data.nama}" berhasil dibuat`);
+    } catch {
+      toast.error("Gagal membuat customer");
+    } finally {
+      setSavingCustomer(false);
+    }
+  }
 
   function tambahProduk(produkId: string | null) {
     if (!produkId) return;
@@ -137,66 +175,6 @@ export function OrderPOSForm() {
 
   const subtotal = items.reduce((sum, it) => sum + it.qty * it.hargaSatuan, 0);
   const total = subtotal;
-
-  async function submitCustomerBaru() {
-    const nama = namaBaru.trim();
-    if (!nama) {
-      toast.error("Nama customer wajib diisi");
-      return;
-    }
-
-    // Endpoint Customer menolak keras nama yang sama (case-insensitive) tanpa
-    // mengirim balik datanya — cek dulu di data yang sudah dimuat supaya user
-    // bisa langsung pakai yang sudah ada (PRD §4 Edge Cases: tawarkan pilih
-    // yang sudah ada kalau nama sama).
-    const existingLocal = customers.find((c) => c.nama.toLowerCase() === nama.toLowerCase());
-    if (existingLocal) {
-      setDuplikat(existingLocal);
-      return;
-    }
-
-    setSavingCustomer(true);
-    try {
-      const res = await fetch("/api/database/customers", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          nama,
-          kontak: kontakBaru.trim() || undefined,
-          alamat: alamatBaru.trim() || undefined,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        toast.error(data.error ?? "Gagal menambah customer");
-        return;
-      }
-      setCustomers((prev) => [data.item, ...prev]);
-      setCustomerId(data.item.id);
-      toast.success(`Customer "${data.item.nama}" ditambahkan`);
-      tutupModal();
-    } catch {
-      toast.error("Tidak bisa terhubung ke server");
-    } finally {
-      setSavingCustomer(false);
-    }
-  }
-
-  function gunakanDuplikat() {
-    if (!duplikat) return;
-    setCustomers((prev) => (prev.some((c) => c.id === duplikat.id) ? prev : [duplikat, ...prev]));
-    setCustomerId(duplikat.id);
-    toast.success(`Menggunakan customer "${duplikat.nama}" yang sudah ada`);
-    tutupModal();
-  }
-
-  function tutupModal() {
-    setModalOpen(false);
-    setNamaBaru("");
-    setKontakBaru("");
-    setAlamatBaru("");
-    setDuplikat(null);
-  }
 
   async function handleSubmit() {
     if (!customerId) {
@@ -276,12 +254,6 @@ export function OrderPOSForm() {
       <PageHeader
         title="Buat Order Baru"
         description="Order penjualan POS (retail) untuk konsumen akhir."
-        action={
-          <Button variant="secondary" onClick={() => router.push("/pos")}>
-            <ArrowLeft className="h-4 w-4" />
-            Kembali
-          </Button>
-        }
       />
 
       <div className="space-y-4">
@@ -290,25 +262,17 @@ export function OrderPOSForm() {
             <CardTitle>Customer &amp; Outlet</CardTitle>
           </CardHeader>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div>
-              <SearchableSelect
-                label="Customer"
-                required
-                placeholder={loadingMeta ? "Memuat..." : "Pilih customer"}
-                options={customerOptions}
-                value={customerId}
-                onChange={setCustomerId}
-                disabled={loadingMeta}
-              />
-              <button
-                type="button"
-                onClick={() => setModalOpen(true)}
-                className="mt-1.5 inline-flex min-h-[44px] items-center gap-1 text-sm font-medium text-blue-600 hover:underline dark:text-blue-400"
-              >
-                <UserPlus className="h-4 w-4" />
-                Tambah customer baru
-              </button>
-            </div>
+            <SearchableSelect
+              label="Customer"
+              required
+              placeholder={loadingMeta ? "Memuat..." : "Pilih / ketik nama baru..."}
+              options={customerOptions}
+              value={customerId}
+              onChange={setCustomerId}
+              disabled={loadingMeta}
+              createText="Entry Baru Customer"
+              onCreateNew={handleCreateCustomer}
+            />
             <SearchableSelect
               label="Outlet"
               required
@@ -454,7 +418,7 @@ export function OrderPOSForm() {
         </Card>
       </div>
 
-      {/* Ringkasan total — sticky di bawah supaya mudah dijangkau di HP */}
+      {/* Ringkasan total — sticky di bawah */}
       <div className="fixed inset-x-0 bottom-0 z-10 border-t border-gray-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900 sm:sticky sm:mt-4 sm:rounded-xl sm:border">
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-3">
           <div>
@@ -468,40 +432,16 @@ export function OrderPOSForm() {
         </div>
       </div>
 
-      <Dialog
-        open={modalOpen}
-        onOpenChange={(open) => (open ? setModalOpen(true) : tutupModal())}
-        title="Tambah Customer Baru"
-        description="Customer baru otomatis masuk ke Database."
-      >
-        {duplikat ? (
-          <div className="space-y-3">
-            <p className="text-sm text-gray-700 dark:text-gray-300">
-              Customer dengan nama <span className="font-medium">&quot;{duplikat.nama}&quot;</span> sudah ada di
-              Database. Pakai yang sudah ada, atau ganti namanya kalau ini memang customer berbeda.
-            </p>
-            <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-              <Button variant="secondary" onClick={() => setDuplikat(null)}>
-                Ganti Nama
-              </Button>
-              <Button onClick={gunakanDuplikat}>Gunakan yang Sudah Ada</Button>
-            </div>
+      {/* Dialog Entry Baru Customer */}
+      <Dialog open={newCustomerOpen} onOpenChange={setNewCustomerOpen} title="Customer Baru">
+        <div className="space-y-4">
+          <Input label="Nama Customer" required value={newCustomerNama} onChange={(e) => setNewCustomerNama(e.target.value)} />
+          <Input label="No. HP / WhatsApp" value={newCustomerHP} onChange={(e) => setNewCustomerHP(e.target.value)} placeholder="08xxxxxxxxxx" />
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={() => setNewCustomerOpen(false)}>Batal</Button>
+            <Button type="button" loading={savingCustomer} onClick={handleSaveNewCustomer}>Simpan</Button>
           </div>
-        ) : (
-          <div className="space-y-3">
-            <Input label="Nama" required value={namaBaru} onChange={(e) => setNamaBaru(e.target.value)} />
-            <Input label="Kontak (opsional)" value={kontakBaru} onChange={(e) => setKontakBaru(e.target.value)} />
-            <Input label="Alamat (opsional)" value={alamatBaru} onChange={(e) => setAlamatBaru(e.target.value)} />
-            <div className="flex justify-end gap-2">
-              <Button variant="secondary" onClick={tutupModal}>
-                Batal
-              </Button>
-              <Button onClick={() => submitCustomerBaru()} loading={savingCustomer}>
-                Simpan Customer
-              </Button>
-            </div>
-          </div>
-        )}
+        </div>
       </Dialog>
     </div>
   );

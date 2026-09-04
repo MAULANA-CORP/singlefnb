@@ -3,19 +3,20 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Trash2, UserPlus } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Textarea } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Dialog } from "@/components/ui/dialog";
 import { SearchableSelect, type SelectOption } from "@/components/ui/searchable-select";
+import { Dialog } from "@/components/ui/dialog";
 import { formatRupiah, formatAngka } from "@/lib/utils";
 
 interface AgenOpt {
   id: string;
   nama: string;
   kontak: string | null;
+  noHP: string | null;
   alamat: string | null;
 }
 interface OutletOpt {
@@ -60,13 +61,50 @@ export function OrderFormClient({
   const [catatan, setCatatan] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
 
-  const [dialogAgenOpen, setDialogAgenOpen] = React.useState(false);
-  const [agenBaruNama, setAgenBaruNama] = React.useState("");
-  const [agenBaruKontak, setAgenBaruKontak] = React.useState("");
-  const [agenBaruAlamat, setAgenBaruAlamat] = React.useState("");
+  // Inline agen creation
+  const [newAgenOpen, setNewAgenOpen] = React.useState(false);
+  const [newAgenNama, setNewAgenNama] = React.useState("");
+  const [newAgenHP, setNewAgenHP] = React.useState("");
+  const [newAgenAlamat, setNewAgenAlamat] = React.useState("");
   const [savingAgen, setSavingAgen] = React.useState(false);
 
-  const agenOptions: SelectOption[] = agens.map((a) => ({ value: a.id, label: a.nama, hint: a.kontak ?? undefined }));
+  const agenOptions: SelectOption[] = agens.map((a) => ({ value: a.id, label: a.nama, hint: a.noHP ?? a.kontak ?? undefined }));
+
+  // Handle "Entry Baru" agen
+  function handleCreateAgen(query: string) {
+    setNewAgenNama(query);
+    setNewAgenHP("");
+    setNewAgenAlamat("");
+    setNewAgenOpen(true);
+  }
+
+  async function handleSaveNewAgen() {
+    if (!newAgenNama.trim()) {
+      toast.error("Nama agen wajib diisi");
+      return;
+    }
+    setSavingAgen(true);
+    try {
+      const res = await fetch("/api/database/agens/quick", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nama: newAgenNama, noHP: newAgenHP, alamat: newAgenAlamat }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error ?? "Gagal membuat agen");
+        return;
+      }
+      setAgens((prev) => [data.data, ...prev]);
+      setAgenId(data.data.id);
+      setNewAgenOpen(false);
+      toast.success(`Agen "${data.data.nama}" berhasil dibuat`);
+    } catch {
+      toast.error("Gagal membuat agen");
+    } finally {
+      setSavingAgen(false);
+    }
+  }
   const outletOptions: SelectOption[] = outletList.map((o) => ({ value: o.id, label: o.nama }));
   const produkMap = React.useMemo(() => new Map(produkList.map((p) => [p.id, p])), [produkList]);
 
@@ -111,41 +149,6 @@ export function OrderFormClient({
   const total = rincian.reduce((s, r) => s + r.subtotal, 0);
   const adaStokKurang = rincian.some((r) => r.stokKurang);
   const adaItemBelumLengkap = rincian.some((r) => !r.row.produkJadiId || r.qty <= 0);
-
-  async function buatAgenBaru() {
-    if (!agenBaruNama.trim()) {
-      toast.error("Nama agen wajib diisi");
-      return;
-    }
-    setSavingAgen(true);
-    try {
-      const res = await fetch("/api/database/agen", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nama: agenBaruNama, kontak: agenBaruKontak, alamat: agenBaruAlamat }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        toast.error(data.error ?? "Gagal menambah agen");
-        return;
-      }
-      if (data.existing) {
-        toast.message("Agen dengan nama itu sudah ada, dipilih yang sudah ada.");
-      } else {
-        toast.success("Agen baru ditambahkan");
-      }
-      setAgens((prev) => (prev.some((a) => a.id === data.data.id) ? prev : [...prev, data.data]));
-      setAgenId(data.data.id);
-      setDialogAgenOpen(false);
-      setAgenBaruNama("");
-      setAgenBaruKontak("");
-      setAgenBaruAlamat("");
-    } catch {
-      toast.error("Tidak bisa terhubung ke server");
-    } finally {
-      setSavingAgen(false);
-    }
-  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -206,25 +209,18 @@ export function OrderFormClient({
             <CardTitle>Agen & Outlet</CardTitle>
           </CardHeader>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <div className="flex items-end gap-2">
-                <div className="flex-1">
-                  <SearchableSelect
-                    label="Agen"
-                    required
-                    placeholder="Pilih agen..."
-                    searchPlaceholder="Cari agen..."
-                    emptyText="Agen tidak ditemukan"
-                    options={agenOptions}
-                    value={agenId}
-                    onChange={setAgenId}
-                  />
-                </div>
-                <Button type="button" variant="secondary" size="md" onClick={() => setDialogAgenOpen(true)} aria-label="Tambah agen baru">
-                  <UserPlus className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
+            <SearchableSelect
+              label="Agen"
+              required
+              placeholder="Pilih / ketik nama baru..."
+              searchPlaceholder="Cari agen..."
+              emptyText="Agen tidak ditemukan"
+              options={agenOptions}
+              value={agenId}
+              onChange={setAgenId}
+              createText="Entry Baru Agen"
+              onCreateNew={handleCreateAgen}
+            />
             <SearchableSelect
               label="Outlet"
               required
@@ -335,23 +331,15 @@ export function OrderFormClient({
         </div>
       </form>
 
-      <Dialog
-        open={dialogAgenOpen}
-        onOpenChange={setDialogAgenOpen}
-        title="Tambah Agen Baru"
-        description="Agen baru akan otomatis masuk ke Database."
-      >
-        <div className="space-y-3">
-          <Input label="Nama Agen" required value={agenBaruNama} onChange={(e) => setAgenBaruNama(e.target.value)} />
-          <Input label="Kontak" value={agenBaruKontak} onChange={(e) => setAgenBaruKontak(e.target.value)} />
-          <Input label="Alamat" value={agenBaruAlamat} onChange={(e) => setAgenBaruAlamat(e.target.value)} />
-          <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="secondary" onClick={() => setDialogAgenOpen(false)}>
-              Batal
-            </Button>
-            <Button type="button" loading={savingAgen} onClick={buatAgenBaru}>
-              Simpan Agen
-            </Button>
+      {/* Dialog Entry Baru Agen */}
+      <Dialog open={newAgenOpen} onOpenChange={setNewAgenOpen} title="Agen Baru">
+        <div className="space-y-4">
+          <Input label="Nama Agen" required value={newAgenNama} onChange={(e) => setNewAgenNama(e.target.value)} />
+          <Input label="No. HP / WhatsApp" value={newAgenHP} onChange={(e) => setNewAgenHP(e.target.value)} placeholder="08xxxxxxxxxx" />
+          <Input label="Alamat" value={newAgenAlamat} onChange={(e) => setNewAgenAlamat(e.target.value)} placeholder="Kota / alamat agen" />
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={() => setNewAgenOpen(false)}>Batal</Button>
+            <Button type="button" loading={savingAgen} onClick={handleSaveNewAgen}>Simpan</Button>
           </div>
         </div>
       </Dialog>

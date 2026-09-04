@@ -29,6 +29,7 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: "Keuangan",
     items: [
+      { href: "/keuangan/pembelian", label: "Belanja", icon: "ShoppingBag", roles: ["OWNER", "FINANCE"] },
       { href: "/keuangan/utang-piutang", label: "Utang & Piutang", icon: "Wallet", roles: ["OWNER", "FINANCE", "SALES"] },
       { href: "/finance", label: "Finance Room", icon: "Landmark", roles: ["OWNER", "FINANCE"] },
       { href: "/pengeluaran", label: "Pengeluaran", icon: "Receipt", roles: ["OWNER", "FINANCE"] },

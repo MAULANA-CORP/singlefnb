@@ -1,13 +1,10 @@
 "use client";
 
-import * as React from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card } from "@/components/ui/card";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { PembelianForm } from "./pembelian-form";
-import { UtangStandaloneForm } from "./utang-standalone-form";
 import type { OutletOption, StokItemOption, SupplierOption } from "./types";
 
 export function PembelianClient({
@@ -32,25 +29,12 @@ export function PembelianClient({
       </Link>
 
       <PageHeader
-        title="Catat Pembelian / Utang Baru"
-        description="Pembelian dari supplier otomatis menambah stok dan mencatat utang. Pinjaman/Investor dicatat langsung tanpa item."
+        title="Catat Belanja Bahan Baku"
+        description="Pembelian dari supplier — stok bertambah otomatis. Pilih CASH, CREDIT, atau SPLIT (bayar sebagian)."
       />
 
       <Card>
-        <Tabs defaultValue="pembelian">
-          <TabsList>
-            <TabsTrigger value="pembelian">Pembelian dari Supplier</TabsTrigger>
-            <TabsTrigger value="standalone">Pinjaman / Investor</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="pembelian">
-            <PembelianForm suppliers={suppliers} bahanBaku={bahanBaku} kemasan={kemasan} outlets={outlets} />
-          </TabsContent>
-
-          <TabsContent value="standalone">
-            <UtangStandaloneForm />
-          </TabsContent>
-        </Tabs>
+        <PembelianForm suppliers={suppliers} bahanBaku={bahanBaku} kemasan={kemasan} outlets={outlets} />
       </Card>
     </div>
   );

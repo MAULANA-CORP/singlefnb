@@ -12,7 +12,7 @@ export const GET = withOwnerProduksi(async () => {
         select: { id: true, nama: true },
       }),
       prisma.bahanBaku.findMany({ take: 200, orderBy: { nama: "asc" },
-        select: { id: true, nama: true, satuan: true, stok: true },
+        select: { id: true, nama: true, satuan: true, stok: true, hargaRataRata: true },
       }),
       prisma.kemasan.findMany({ take: 200, orderBy: { nama: "asc" },
         select: { id: true, nama: true, satuan: true, stok: true },
@@ -42,7 +42,7 @@ export const GET = withOwnerProduksi(async () => {
     return NextResponse.json({
       data: {
         outlets,
-        bahanBaku: bahanBaku.map((b) => ({ ...b, stok: Number(b.stok) })),
+        bahanBaku: bahanBaku.map((b) => ({ ...b, stok: Number(b.stok), hargaRataRata: Number(b.hargaRataRata) })),
         kemasan: kemasan.map((k) => ({ ...k, stok: Number(k.stok) })),
         produkJadi: produkJadi.map((p) => ({ ...p, stok: Number(p.stok) })),
         prosesSelesai: prosesSelesai.map((p) => ({

@@ -118,6 +118,7 @@ model Outlet {
   id        String   @id @default(cuid())
   nama      String
   alamat    String?
+  noHP      String?  // nomor WhatsApp outlet
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -180,6 +181,7 @@ model Agen {
   id        String   @id @default(cuid())
   nama      String
   kontak    String?
+  noHP      String?  // nomor WhatsApp
   alamat    String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -210,6 +212,7 @@ model BahanBaku {
   satuan       String // gr, kg, ml, L, pcs, dst
   stok         Decimal  @default(0) @db.Decimal(15, 3)
   stokMinimum  Decimal  @default(0) @db.Decimal(15, 3)
+  hargaRataRata Decimal @default(0) @db.Decimal(15, 2) // rata-rata harga dari pembelian
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

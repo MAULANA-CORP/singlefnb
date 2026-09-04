@@ -62,7 +62,7 @@ export function OrderDetailClient({ id }: { id: string }) {
             title="Order tidak ditemukan"
             description="Order ini mungkin sudah dihapus atau URL tidak valid."
             action={
-              <Button variant="secondary" onClick={() => router.push("/pos")}>
+              <Button variant="secondary" onClick={() => router.push("/pos/history")}>
                 <ArrowLeft className="h-4 w-4" />
                 Kembali ke daftar POS
               </Button>
@@ -82,7 +82,7 @@ export function OrderDetailClient({ id }: { id: string }) {
         description={`Dibuat ${formatTanggalJam(order.createdAt)} oleh ${order.user?.nama ?? "-"}`}
         action={
           <div className="flex gap-2">
-            <Button variant="secondary" onClick={() => router.push("/pos")}>
+            <Button variant="secondary" onClick={() => router.push("/pos/history")}>
               <ArrowLeft className="h-4 w-4" />
               Kembali
             </Button>

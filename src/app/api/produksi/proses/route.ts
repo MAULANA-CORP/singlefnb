@@ -80,7 +80,8 @@ export const POST = withOwnerProduksi(async (user, req) => {
         bahanBakuId: String(l.bahanBakuId ?? ""),
         qtyPakai: Number(l.qtyPakai),
         qtyWaste: l.qtyWaste != null && l.qtyWaste !== "" ? Number(l.qtyWaste) : 0,
-        hargaSatuanSaatItu: Number(l.hargaSatuanSaatItu),
+        // hargaSatuanSaatItu optional — jika tidak dikirim, backend ambil dari hargaRataRata DB
+        ...(l.hargaSatuanSaatItu != null && l.hargaSatuanSaatItu !== "" ? { hargaSatuanSaatItu: Number(l.hargaSatuanSaatItu) } : {}),
       })),
     });
 

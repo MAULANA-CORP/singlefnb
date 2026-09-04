@@ -16,7 +16,7 @@ import { firstOfMonthStr, todayStr, type ArusKasResult, type OutletOption } from
 export function ArusKasPanel({ outlets }: { outlets: OutletOption[] }) {
   const [start, setStart] = React.useState(firstOfMonthStr());
   const [end, setEnd] = React.useState(todayStr());
-  const [outletId, setOutletId] = React.useState<string | null>(null);
+  const [outletId, setOutletId] = React.useState<string | null>(outlets[0]?.id ?? null);
   const [data, setData] = React.useState<ArusKasResult | null>(null);
   const [loading, setLoading] = React.useState(true);
 

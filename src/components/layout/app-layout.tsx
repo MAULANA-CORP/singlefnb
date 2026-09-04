@@ -19,11 +19,13 @@ export function AppLayout({
   nama,
   role,
   namaToko,
+  logoUrl,
   children,
 }: {
   nama: string;
   role: Role;
   namaToko: string;
+  logoUrl?: string | null;
   children: React.ReactNode;
 }) {
   const router = useRouter();
@@ -41,9 +43,14 @@ export function AppLayout({
       {/* Sidebar desktop */}
       <aside className="hidden w-64 shrink-0 border-r border-gray-200 dark:border-zinc-800 lg:block">
         <div className="flex h-14 items-center gap-2 border-b border-gray-200 px-4 dark:border-zinc-800">
-          <div className="rounded-lg bg-blue-600 p-1.5 dark:bg-blue-500">
-            <Store className="h-4 w-4 text-white" />
-          </div>
+          {logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={logoUrl} alt="Logo" className="h-8 w-8 rounded-lg object-contain" />
+          ) : (
+            <div className="rounded-lg bg-blue-600 p-1.5 dark:bg-blue-500">
+              <Store className="h-4 w-4 text-white" />
+            </div>
+          )}
           <span className="truncate text-sm font-semibold text-gray-900 dark:text-gray-50">{namaToko}</span>
         </div>
         <Sidebar role={role} />
@@ -55,7 +62,13 @@ export function AppLayout({
           <div className="absolute inset-0 bg-black/50" onClick={() => setDrawerOpen(false)} />
           <aside className="absolute left-0 top-0 h-full w-72 bg-background shadow-xl">
             <div className="flex h-14 items-center justify-between border-b border-gray-200 px-4 dark:border-zinc-800">
-              <span className="truncate text-sm font-semibold text-gray-900 dark:text-gray-50">{namaToko}</span>
+              <div className="flex items-center gap-2">
+                {logoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={logoUrl} alt="Logo" className="h-8 w-8 rounded-lg object-contain" />
+                ) : null}
+                <span className="truncate text-sm font-semibold text-gray-900 dark:text-gray-50">{namaToko}</span>
+              </div>
               <button onClick={() => setDrawerOpen(false)} className="rounded-lg p-1.5 hover:bg-gray-100 dark:hover:bg-zinc-800">
                 <X className="h-5 w-5" />
               </button>
