@@ -341,7 +341,7 @@ export async function buatOutput(input: BuatOutputInput): Promise<BuatOutputHasi
 
     // 3) Ambil data kemasan & produk jadi
     const [kemasanList, produkJadiList] = await Promise.all([
-      kemasanIds.length > 0 ? tx.kemasan.findMany({ where: { id: { in: kemasanIds } } }) : Promise.resolve([]),
+      kemasanIds.length > 0 ? tx.kemasan.findMany({ where: { id: { in: kemasanIds } } }) : Promise.resolve([] as any[]),
       tx.produkJadi.findMany({ where: { id: { in: produkJadiIds } }, include: { kemasan: true } }),
     ]);
 
