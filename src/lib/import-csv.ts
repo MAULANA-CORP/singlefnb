@@ -3,7 +3,9 @@
 // import (server, sumber kebenaran akhir) dan dialog preview import (client)
 // supaya logikanya konsisten di kedua sisi.
 
-export type ImportFieldType = "text" | "number";
+import { SATUAN_OPTIONS } from "@/lib/satuan";
+
+export type ImportFieldType = "text" | "number" | "select";
 
 export interface EntityFieldDef {
   key: string;
@@ -16,6 +18,10 @@ export interface EntityFieldDef {
   integer?: boolean;
   /** Ditampilkan dengan format Rupiah di tabel/preview. */
   money?: boolean;
+  /** Opsi dropdown (type: "select"). CSV import tetap teks bebas yang harus cocok value-nya. */
+  options?: readonly { value: string; label: string }[];
+  /** Nilai awal form saat Tambah (bukan saat Edit). */
+  defaultValue?: string;
 }
 
 export interface EntityDef {
@@ -30,8 +36,15 @@ export const ENTITY_DEFS = {
     label: "Bahan Baku",
     fields: [
       { key: "nama", label: "Nama", type: "text", required: true },
-      { key: "satuan", label: "Satuan", type: "text", required: true },
+      { key: "satuan", label: "Satuan", type: "select", required: true, options: SATUAN_OPTIONS },
       { key: "stok", label: "Stok", type: "number", optionalNumberDefaultsToZero: true },
+      {
+        key: "hargaRataRata",
+        label: "Harga Satuan",
+        type: "number",
+        optionalNumberDefaultsToZero: true,
+        money: true,
+      },
       { key: "stokMinimum", label: "ROP (Stok Min.)", type: "number", optionalNumberDefaultsToZero: true },
     ],
   },
@@ -40,7 +53,7 @@ export const ENTITY_DEFS = {
     label: "Kemasan",
     fields: [
       { key: "nama", label: "Nama", type: "text", required: true },
-      { key: "satuan", label: "Satuan", type: "text", required: true },
+      { key: "satuan", label: "Satuan", type: "select", required: true, options: SATUAN_OPTIONS },
       { key: "stok", label: "Stok", type: "number", optionalNumberDefaultsToZero: true },
       { key: "stokMinimum", label: "ROP (Stok Min.)", type: "number", optionalNumberDefaultsToZero: true },
     ],
@@ -50,7 +63,7 @@ export const ENTITY_DEFS = {
     label: "Produk Jadi",
     fields: [
       { key: "nama", label: "Nama", type: "text", required: true },
-      { key: "satuan", label: "Satuan", type: "text", required: true },
+      { key: "satuan", label: "Satuan", type: "select", required: true, options: SATUAN_OPTIONS, defaultValue: "pcs" },
       { key: "beratBersih", label: "Berat Bersih (gr)", type: "number", integer: true },
       { key: "harga", label: "Harga", type: "number", optionalNumberDefaultsToZero: true, money: true },
       { key: "stok", label: "Stok", type: "number", optionalNumberDefaultsToZero: true },
@@ -148,7 +161,7 @@ export function classifyImportRows(
       const raw = row[f.key];
       const str = raw === undefined || raw === null ? "" : String(raw).trim();
 
-      if (f.type === "text") {
+      if (f.type === "text" || f.type === "select") {
         if (f.required && !str) {
           errors.push(`"${f.label}" wajib diisi`);
         } else {

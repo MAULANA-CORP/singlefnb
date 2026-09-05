@@ -13,7 +13,7 @@ import { Dialog, ConfirmDialog } from "@/components/ui/dialog";
 import { SearchableSelect, type SelectOption } from "@/components/ui/searchable-select";
 import { EmptyState, LoadingSkeleton } from "@/components/ui/empty-state";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { formatAngka, formatTanggalJam } from "@/lib/utils";
+import { formatAngka, formatRupiah, formatTanggalJam } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
 // Konfigurasi kategori
@@ -78,6 +78,7 @@ interface StokItem {
   satuan: string;
   stok: number;
   stokMinimum: number;
+  hargaRataRata?: number;
   lowStock: boolean;
 }
 
@@ -333,6 +334,9 @@ export function InventoryClient({ role }: { role: Role }) {
                   <tr className="border-b border-gray-200 text-gray-600 dark:border-zinc-700 dark:text-gray-400">
                     <th className="py-2 pr-4 font-medium">Nama</th>
                     <th className="py-2 pr-4 text-right font-medium">Stok</th>
+                    {activeKey === "bahan-baku" && (
+                      <th className="py-2 pr-4 text-right font-medium">Harga Satuan</th>
+                    )}
                     <th className="py-2 pr-4 text-right font-medium">ROP (Stok Min.)</th>
                     <th className="py-2 pr-4 font-medium">Status</th>
                     {bisaAdjustment && <th className="py-2 pr-4 font-medium">Aksi</th>}
@@ -345,6 +349,12 @@ export function InventoryClient({ role }: { role: Role }) {
                       <td className="py-3 pr-4 text-right text-gray-700 dark:text-gray-300">
                         {formatAngka(i.stok, 3)} {i.satuan}
                       </td>
+                      {activeKey === "bahan-baku" && (
+                        <td className="py-3 pr-4 text-right text-gray-700 dark:text-gray-300">
+                          {formatRupiah(i.hargaRataRata ?? 0)}
+                          <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">/{i.satuan}</span>
+                        </td>
+                      )}
                       <td className="py-3 pr-4 text-right text-gray-700 dark:text-gray-300">
                         {formatAngka(i.stokMinimum, 3)} {i.satuan}
                       </td>

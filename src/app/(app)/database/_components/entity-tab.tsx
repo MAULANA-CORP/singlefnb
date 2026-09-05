@@ -9,9 +9,11 @@ import { Input } from "@/components/ui/input";
 import { Dialog, ConfirmDialog } from "@/components/ui/dialog";
 import { EmptyState, LoadingSkeleton } from "@/components/ui/empty-state";
 import { Pagination } from "@/components/ui/pagination";
-import { formatRupiah, formatAngka, formatTanggal } from "@/lib/utils";
+import { formatRupiah, formatAngka } from "@/lib/utils";
+import { satuanOptionsWithCurrent } from "@/lib/satuan";
 import type { Role } from "@/lib/session";
 import type { EntityUiConfig } from "../_lib/entity-config";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { ImportDialog } from "./import-dialog";
 
 type Row = Record<string, unknown> & { id: string; nama: string };
@@ -75,7 +77,7 @@ export function EntityTab({ entity, role }: { entity: EntityUiConfig; role: Role
   function openCreate() {
     setEditing(null);
     const initial: Record<string, string> = {};
-    for (const f of entity.fields) initial[f.key] = "";
+    for (const f of entity.fields) initial[f.key] = f.defaultValue ?? "";
     setFormValues(initial);
     setFormOpen(true);
   }
@@ -93,6 +95,12 @@ export function EntityTab({ entity, role }: { entity: EntityUiConfig; role: Role
 
   async function submitForm(e: React.FormEvent) {
     e.preventDefault();
+    for (const f of entity.fields) {
+      if (f.required && !(formValues[f.key] ?? "").trim()) {
+        toast.error(`${f.label} wajib diisi`);
+        return;
+      }
+    }
     setSaving(true);
     try {
       const body: Record<string, unknown> = {};
@@ -240,7 +248,7 @@ export function EntityTab({ entity, role }: { entity: EntityUiConfig; role: Role
                         display = f.money
                           ? formatRupiah(Number(v))
                           : f.type === "number"
-                          ? formatAngka(Number(v), f.key === "harga" ? 0 : undefined)
+                          ? formatAngka(Number(v), f.key === "harga" || f.key === "hargaRataRata" ? 0 : undefined)
                           : String(v);
                       }
                       return (
@@ -293,16 +301,33 @@ export function EntityTab({ entity, role }: { entity: EntityUiConfig; role: Role
         <form onSubmit={submitForm} className="space-y-4">
           {entity.fields.map((f) => (
             <div key={f.key}>
-              <Input
-                label={f.label}
-                required={f.required}
-                type={f.type === "number" ? "number" : "text"}
-                step={f.type === "number" ? (f.integer ? "1" : "0.001") : undefined}
-                min={f.type === "number" ? "0" : undefined}
-                autoFocus={f.key === "nama"}
-                value={formValues[f.key] ?? ""}
-                onChange={(e) => setFormValues((prev) => ({ ...prev, [f.key]: e.target.value }))}
-              />
+              {f.type === "select" ? (
+                <SearchableSelect
+                  label={f.label}
+                  required={f.required}
+                  value={formValues[f.key] || null}
+                  onChange={(v) => setFormValues((prev) => ({ ...prev, [f.key]: v ?? "" }))}
+                  options={
+                    f.key === "satuan"
+                      ? satuanOptionsWithCurrent(formValues[f.key])
+                      : [...(f.options ?? [])]
+                  }
+                  placeholder={`Pilih ${f.label.toLowerCase()}`}
+                  searchPlaceholder={`Cari ${f.label.toLowerCase()}...`}
+                  emptyText="Tidak ditemukan"
+                />
+              ) : (
+                <Input
+                  label={f.label}
+                  required={f.required}
+                  type={f.type === "number" ? "number" : "text"}
+                  step={f.type === "number" ? (f.money || f.integer ? "1" : "0.001") : undefined}
+                  min={f.type === "number" ? "0" : undefined}
+                  autoFocus={f.key === "nama"}
+                  value={formValues[f.key] ?? ""}
+                  onChange={(e) => setFormValues((prev) => ({ ...prev, [f.key]: e.target.value }))}
+                />
+              )}
               {entity.fieldHints?.[f.key] && (
                 <p className="mt-1 text-xs text-gray-500 dark:text-gray-500">
                   {entity.fieldHints[f.key]}

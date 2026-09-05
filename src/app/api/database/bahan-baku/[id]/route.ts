@@ -8,6 +8,7 @@ function serialize(item: {
   satuan: string;
   stok: unknown;
   stokMinimum: unknown;
+  hargaRataRata: unknown;
   createdAt: Date;
   updatedAt: Date;
 }) {
@@ -17,6 +18,7 @@ function serialize(item: {
     satuan: item.satuan,
     stok: Number(item.stok),
     stokMinimum: Number(item.stokMinimum),
+    hargaRataRata: Number(item.hargaRataRata),
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
   };
@@ -41,6 +43,10 @@ export const PUT = withOwner<{ params: Promise<{ id: string }> }>(async (user, r
 
     if (!nama) return NextResponse.json({ error: "Nama wajib diisi" }, { status: 400 });
     if (!satuan) return NextResponse.json({ error: "Satuan wajib diisi" }, { status: 400 });
+    const hargaRataRata = Number(body.hargaRataRata ?? 0);
+    if (!Number.isFinite(hargaRataRata) || hargaRataRata < 0) {
+      return NextResponse.json({ error: "Harga satuan tidak valid" }, { status: 400 });
+    }
 
     const dup = await getPrisma().bahanBaku.findFirst({
       where: { nama: { equals: nama, mode: "insensitive" }, NOT: { id } },
@@ -56,6 +62,7 @@ export const PUT = withOwner<{ params: Promise<{ id: string }> }>(async (user, r
         satuan,
         stok: Number(body.stok ?? 0),
         stokMinimum: Number(body.stokMinimum ?? 0),
+        hargaRataRata,
       },
     });
 

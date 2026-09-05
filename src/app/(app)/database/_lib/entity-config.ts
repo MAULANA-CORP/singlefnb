@@ -25,7 +25,11 @@ export const ENTITY_UI: EntityUiConfig[] = [
     fields: ENTITY_DEFS["bahan-baku"].fields,
     writeRoles: ["OWNER"],
     searchParam: "search",
-    fieldHints: { stok: STOK_HINT },
+    fieldHints: {
+      stok: STOK_HINT,
+      hargaRataRata:
+        "Harga beli per satuan (mis. Rp 35.000 per kg). Wajib diisi kalau ada stok lama, supaya HPP produksi tidak nol. Setelah ada pembelian baru, angka ini otomatis jadi rata-rata tertimbang.",
+    },
     emptyLabel: "Belum ada data Bahan Baku",
   },
   {

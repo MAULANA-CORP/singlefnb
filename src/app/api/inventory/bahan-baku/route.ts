@@ -24,6 +24,7 @@ export const GET = withRole(["OWNER", "FINANCE", "PRODUKSI"], async (_user, req)
           satuan: i.satuan,
           stok,
           stokMinimum,
+          hargaRataRata: Number(i.hargaRataRata),
           lowStock: stokMinimum > 0 && stok <= stokMinimum,
         };
       })
