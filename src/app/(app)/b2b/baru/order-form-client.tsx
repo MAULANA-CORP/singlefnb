@@ -59,6 +59,9 @@ export function OrderFormClient({
   const [outletId, setOutletId] = React.useState<string | null>(defaultOutletId ?? outletList[0]?.id ?? null);
   const [rows, setRows] = React.useState<Row[]>([baris()]);
   const [catatan, setCatatan] = React.useState("");
+  const [metodeBayar, setMetodeBayar] = React.useState<string>("KREDIT");
+  const [tanggalJatuhTempo, setTanggalJatuhTempo] = React.useState("");
+  const [bayarSekarang, setBayarSekarang] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
 
   // Inline agen creation
@@ -178,6 +181,9 @@ export function OrderFormClient({
           agenId,
           outletId,
           catatan,
+          metodeBayar,
+          tanggalJatuhTempo: metodeBayar === "KREDIT" && tanggalJatuhTempo ? tanggalJatuhTempo : undefined,
+          bayarSekarang: metodeBayar === "KREDIT" && bayarSekarang ? Number(bayarSekarang) : undefined,
           items: rincian.map((r) => ({
             produkJadiId: r.row.produkJadiId,
             qty: r.qty,
@@ -312,6 +318,51 @@ export function OrderFormClient({
               <p className="text-xl font-semibold text-gray-900 dark:text-gray-50">{formatRupiah(total)}</p>
             </div>
           </div>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Pembayaran</CardTitle>
+          </CardHeader>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <SearchableSelect
+              label="Metode Bayar"
+              required
+              placeholder="Pilih metode..."
+              options={[
+                { value: "CASH", label: "Cash (Bayar Langsung)" },
+                { value: "TRANSFER_QRIS", label: "Transfer / QRIS" },
+                { value: "KREDIT", label: "Kredit (Tempo)" },
+              ]}
+              value={metodeBayar}
+              onChange={(v) => setMetodeBayar(v ?? "KREDIT")}
+            />
+            {metodeBayar === "KREDIT" && (
+              <Input
+                label="Jatuh Tempo"
+                type="date"
+                required
+                value={tanggalJatuhTempo}
+                onChange={(e) => setTanggalJatuhTempo(e.target.value)}
+              />
+            )}
+          </div>
+          {metodeBayar === "KREDIT" && (
+            <div className="mt-4">
+              <Input
+                label="Bayar Di Muka (opsional)"
+                type="number"
+                min={0}
+                max={total}
+                placeholder="0"
+                value={bayarSekarang}
+                onChange={(e) => setBayarSekarang(e.target.value)}
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                Sisa: {formatRupiah(total - (Number(bayarSekarang) || 0))}
+              </p>
+            </div>
+          )}
         </Card>
 
         <Card>

@@ -64,6 +64,9 @@ export interface BuatOrderInput {
   outletId: string;
   items: BuatOrderItemInput[];
   catatan?: string;
+  metodeBayar?: "CASH" | "TRANSFER_QRIS" | "KREDIT";
+  tanggalJatuhTempo?: string; // ISO date, wajib kalau KREDIT & belum lunas
+  bayarSekarang?: number; // jumlah bayar di muka (opsional)
 }
 
 export async function buatOrderB2B(user: AuthUser, input: BuatOrderInput) {
@@ -192,7 +195,67 @@ export async function buatOrderB2B(user: AuthUser, input: BuatOrderInput) {
       });
     }
 
-    return created;
+    // 6) Hitung status bayar berdasarkan metode bayar
+    const metodeBayar = (input.metodeBayar ?? "KREDIT") as "CASH" | "TRANSFER_QRIS" | "KREDIT";
+    const bayarAwal = Math.max(0, Number(input.bayarSekarang ?? 0));
+    let statusBayar: "LUNAS" | "PARSIAL" | "BELUM_BAYAR";
+
+    if (metodeBayar === "CASH" || metodeBayar === "TRANSFER_QRIS") {
+      // Cash/Transfer: langsung lunas (bayarSekarang diabaikan, total == cash)
+      statusBayar = "LUNAS";
+    } else {
+      // Kredit
+      if (bayarAwal >= subtotalOrder - 0.5) {
+        statusBayar = "LUNAS";
+      } else if (bayarAwal > 0) {
+        statusBayar = "PARSIAL";
+      } else {
+        statusBayar = "BELUM_BAYAR";
+      }
+    }
+
+    // 7) Update order dengan metode bayar & status bayar
+    const jatuhTempo = input.tanggalJatuhTempo ? new Date(input.tanggalJatuhTempo) : null;
+    await tx.orderB2B.update({
+      where: { id: created.id },
+      data: {
+        metodeBayar,
+        statusBayar,
+        ...(jatuhTempo ? { tanggalJatuhTempo: jatuhTempo } : {}),
+      },
+    });
+
+    // 8) Buat Piutang (selalu, untuk tracking) + catat pembayaran kalau bayarSekarang > 0
+    const piutang = await tx.piutang.create({
+      data: {
+        orderB2BId: created.id,
+        pihakNama: agen.nama,
+        totalTagihan: subtotalOrder,
+        totalTerbayar: statusBayar === "LUNAS" ? subtotalOrder : bayarAwal,
+        jatuhTempo: jatuhTempo ?? new Date(),
+        status: statusBayar,
+      },
+    });
+
+    if (bayarAwal > 0) {
+      await tx.pembayaran.create({
+        data: {
+          tipe: "PIUTANG",
+          piutangId: piutang.id,
+          jumlah: bayarAwal,
+          catatan: `Pembayaran awal order B2B`,
+          userId: user.id,
+        },
+      });
+    }
+
+    // Re-fetch order dengan relasi lengkap
+    const finalOrder = await tx.orderB2B.findUnique({
+      where: { id: created.id },
+      include: { items: true, agen: true, outlet: true, invoice: true, suratJalan: true, piutang: true },
+    });
+
+    return finalOrder!;
   });
 
   await catatAudit({
