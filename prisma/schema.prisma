@@ -238,6 +238,7 @@ model Kemasan {
   pembelianItem  PembelianItem[]
   outputKemasan OutputKemasan[]
   stokMovement   StokMovementKemasan[]
+  produkJadi     ProdukJadi[]
 
   @@index([nama])
   @@map("kemasan")
