@@ -19,6 +19,13 @@ interface ProsesInfo {
   tanggal: string;
 }
 
+interface BiayaLainInfo {
+  id: string;
+  kategori: string;
+  jumlah: number;
+  catatan: string | null;
+}
+
 interface KemasanInfo {
   id: string;
   kemasan: { id: string; nama: string; satuan: string };
@@ -46,6 +53,8 @@ interface OutputDetail {
   totalBiaya: number;
   totalBiayaProses: number;
   totalBiayaKemasan: number;
+  totalBiayaLain: number;
+  biayaLain: BiayaLainInfo[];
   outlet: { id: string; nama: string };
   user: { id: string; nama: string };
   proses: ProsesInfo[];
@@ -114,6 +123,10 @@ export function OutputDetailClient({ id }: { id: string }) {
               <dt className="text-muted-foreground">Biaya Kemasan</dt>
               <dd className="font-medium">{formatRupiah(data.totalBiayaKemasan)}</dd>
             </div>
+            <div>
+              <dt className="text-muted-foreground">Biaya Lain</dt>
+              <dd className="font-medium">{formatRupiah(data.totalBiayaLain)}</dd>
+            </div>
             {data.catatan && (
               <div className="col-span-2">
                 <dt className="text-muted-foreground">Catatan</dt>
@@ -178,6 +191,35 @@ export function OutputDetailClient({ id }: { id: string }) {
           </table>
         </CardContent>
       </Card>
+
+      {/* Biaya Lain */}
+      {data.biayaLain && data.biayaLain.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Biaya Lain</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-left text-muted-foreground">
+                  <th className="pb-2">Kategori</th>
+                  <th className="pb-2 text-right">Jumlah</th>
+                  <th className="pb-2">Catatan</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.biayaLain.map((bl) => (
+                  <tr key={bl.id} className="border-b last:border-0">
+                    <td className="py-2 font-medium">{bl.kategori}</td>
+                    <td className="py-2 text-right">{formatRupiah(bl.jumlah)}</td>
+                    <td className="py-2 text-muted-foreground">{bl.catatan || '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Kemasan */}
       <Card>

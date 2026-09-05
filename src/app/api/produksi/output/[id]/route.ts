@@ -28,6 +28,7 @@ export const GET = withOwnerProduksi(async (_user, _req, ctx: { params: Promise<
         kemasan: {
           include: { kemasan: { select: { id: true, nama: true, satuan: true } } },
         },
+        biayaLain: true,
       },
     });
 
@@ -41,7 +42,13 @@ export const GET = withOwnerProduksi(async (_user, _req, ctx: { params: Promise<
       0
     );
 
-    // Total biaya = totalBiaya di record (sudah termasuk proses + kemasan)
+    // Total biaya lain
+    const totalBiayaLain = (output as any).biayaLain?.reduce(
+      (sum: number, bl: any) => sum + Number(bl.jumlah),
+      0
+    ) || 0;
+
+    // Total biaya = totalBiaya di record (sudah termasuk proses + kemasan + biaya lain)
     const totalBiaya = Number(output.totalBiaya);
     const totalBiayaProses = totalBiaya - totalBiayaKemasan;
 
@@ -60,6 +67,7 @@ export const GET = withOwnerProduksi(async (_user, _req, ctx: { params: Promise<
       totalBiaya,
       totalBiayaProses,
       totalBiayaKemasan,
+      totalBiayaLain,
       outlet: output.outlet,
       user: output.user,
       proses: output.proses.map((op) => ({
@@ -68,6 +76,12 @@ export const GET = withOwnerProduksi(async (_user, _req, ctx: { params: Promise<
         nama: op.proses.nama,
         status: op.proses.status,
         tanggal: op.proses.tanggal,
+      })),
+      biayaLain: ((output as any).biayaLain || []).map((bl: any) => ({
+        id: bl.id,
+        kategori: bl.kategori,
+        jumlah: Number(bl.jumlah),
+        catatan: bl.catatan,
       })),
       kemasan: output.kemasan.map((k) => ({
         id: k.id,

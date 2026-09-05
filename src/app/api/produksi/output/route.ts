@@ -38,7 +38,8 @@ export const GET = withOwnerProduksi(async (_user, req) => {
             produkJadi: { select: { id: true, nama: true, satuan: true } },
           },
         },
-        kemasan: { select: { id: true, qtyPakai: true, hargaSatuanSaatItu: true } },
+        kemasan: { include: { kemasan: { select: { id: true, nama: true } } } },
+        biayaLain: true,
       },
     });
 
@@ -58,6 +59,18 @@ export const GET = withOwnerProduksi(async (_user, req) => {
         qty: Number(op.qty),
         hppAlokasi: Number(op.hppAlokasi),
       })),
+      kemasan: o.kemasan.map((ok: any) => ({
+        id: ok.id,
+        kemasan: ok.kemasan,
+        qtyPakai: Number(ok.qtyPakai),
+        hargaSatuanSaatItu: Number(ok.hargaSatuanSaatItu),
+      })),
+      biayaLain: (o as any).biayaLain?.map((bl: any) => ({
+        id: bl.id,
+        kategori: bl.kategori,
+        jumlah: Number(bl.jumlah),
+        catatan: bl.catatan,
+      })) || [],
       jumlahKemasan: o.kemasan.length,
     }));
 
@@ -80,6 +93,7 @@ export const POST = withOwnerProduksi(async (user, req) => {
     const prosesIds = Array.isArray(body.prosesIds) ? body.prosesIds.map(String) : [];
     const kemasanLines = Array.isArray(body.kemasan) ? body.kemasan : [];
     const outputLines = Array.isArray(body.produkJadi) ? body.produkJadi : Array.isArray(body.output) ? body.output : [];
+    const biayaLainLines = Array.isArray(body.biayaLain) ? body.biayaLain : [];
 
     const result = await buatOutput({
       outletId,
@@ -90,6 +104,11 @@ export const POST = withOwnerProduksi(async (user, req) => {
         kemasanId: String(l.kemasanId ?? ""),
         qtyPakai: Number(l.qtyPakai),
         hargaSatuanSaatItu: Number(l.hargaSatuanSaatItu),
+      })),
+      biayaLain: biayaLainLines.map((l: Record<string, unknown>) => ({
+        kategori: String(l.kategori ?? ""),
+        jumlah: Number(l.jumlah),
+        catatan: typeof l.catatan === "string" ? l.catatan : undefined,
       })),
       output: outputLines.map((l: Record<string, unknown>) => ({
         produkJadiId: String(l.produkJadiId ?? ""),

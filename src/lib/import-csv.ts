@@ -64,6 +64,8 @@ export const ENTITY_DEFS = {
     fields: [
       { key: "nama", label: "Nama", type: "text", required: true },
       { key: "satuan", label: "Satuan", type: "select", required: true, options: SATUAN_OPTIONS, defaultValue: "pcs" },
+      { key: "kemasanId", label: "Kemasan", type: "text" },
+      { key: "qtyKemasanPerUnit", label: "Qty Kemasan/Unit", type: "number", optionalNumberDefaultsToZero: true },
       { key: "beratBersih", label: "Berat Bersih (gr)", type: "number", integer: true },
       { key: "harga", label: "Harga", type: "number", optionalNumberDefaultsToZero: true, money: true },
       { key: "stok", label: "Stok", type: "number", optionalNumberDefaultsToZero: true },

@@ -28,6 +28,12 @@ export interface KemasanLineInput {
   hargaSatuanSaatItu: number;
 }
 
+export interface BiayaLainLineInput {
+  kategori: string;
+  jumlah: number;
+  catatan?: string;
+}
+
 export interface OutputLineInput {
   produkJadiId: string;
   qty: number;
@@ -52,6 +58,7 @@ export interface OutputLineHasil {
 export interface HasilAlokasiBatch {
   totalBiayaBahanBaku: number;
   totalBiayaKemasan: number;
+  totalBiayaLain: number;
   totalBiayaBatch: number;
   totalBeratSemuaOutput: number;
   /** Rp per gram (atau per unit berat proxy). */
@@ -71,11 +78,13 @@ export interface HasilAlokasiBatch {
 export function hitungAlokasiHPP(
   bahanBaku: BahanBakuLineInput[],
   kemasan: KemasanLineInput[],
-  output: OutputLineInput[]
+  output: OutputLineInput[],
+  biayaLain: BiayaLainLineInput[] = []
 ): HasilAlokasiBatch {
   const totalBiayaBahanBaku = bahanBaku.reduce((sum, b) => sum + (b.qtyPakai + (b.qtyWaste ?? 0)) * (b.hargaSatuanSaatItu ?? 0), 0);
   const totalBiayaKemasan = kemasan.reduce((sum, k) => sum + k.qtyPakai * k.hargaSatuanSaatItu, 0);
-  const totalBiayaBatch = totalBiayaBahanBaku + totalBiayaKemasan;
+  const totalBiayaLain = biayaLain.reduce((sum, bl) => sum + bl.jumlah, 0);
+  const totalBiayaBatch = totalBiayaBahanBaku + totalBiayaKemasan + totalBiayaLain;
 
   const withBerat = output.map((o) => {
     const beratFallback = o.beratBersih == null;
@@ -105,6 +114,7 @@ export function hitungAlokasiHPP(
   return {
     totalBiayaBahanBaku,
     totalBiayaKemasan,
+    totalBiayaLain,
     totalBiayaBatch,
     totalBeratSemuaOutput,
     hppPerGram,
@@ -261,6 +271,7 @@ export interface BuatOutputInput {
   prosesIds: string[];
   kemasan: KemasanLineInput[];
   output: Array<{ produkJadiId: string; qty: number }>;
+  biayaLain?: BiayaLainLineInput[];
 }
 
 export interface BuatOutputHasil {
@@ -331,10 +342,42 @@ export async function buatOutput(input: BuatOutputInput): Promise<BuatOutputHasi
     // 3) Ambil data kemasan & produk jadi
     const [kemasanList, produkJadiList] = await Promise.all([
       kemasanIds.length > 0 ? tx.kemasan.findMany({ where: { id: { in: kemasanIds } } }) : Promise.resolve([]),
-      tx.produkJadi.findMany({ where: { id: { in: produkJadiIds } } }),
+      tx.produkJadi.findMany({ where: { id: { in: produkJadiIds } }, include: { kemasan: true } }),
     ]);
 
     const kemasanMap = new Map(kemasanList.map((k) => [k.id, k]));
+
+    // Auto-generate kemasan from ProdukJadi-Kemasan link
+    for (const pj of produkJadiList) {
+      if (pj.kemasanId && pj.kemasan) {
+        const outputLine = input.output.find(o => o.produkJadiId === pj.id);
+        if (outputLine) {
+          const alreadyInList = input.kemasan.some(k => k.kemasanId === pj.kemasanId);
+          if (!alreadyInList) {
+            const lastPurchase = await tx.pembelianItem.findFirst({
+              where: { kemasanId: pj.kemasanId! },
+              orderBy: { pembelian: { tanggal: "desc" } },
+              select: { hargaSatuan: true },
+            });
+            const hargaSatuan = lastPurchase ? Number(lastPurchase.hargaSatuan) : 0;
+            const qtyPakai = outputLine.qty * Number(pj.qtyKemasanPerUnit ?? 1);
+            input.kemasan.push({
+              kemasanId: pj.kemasanId!,
+              qtyPakai,
+              hargaSatuanSaatItu: hargaSatuan,
+            });
+            const existingKemasan = kemasanList.find(k => k.id === pj.kemasanId);
+            if (!existingKemasan) {
+              const kData = await tx.kemasan.findUnique({ where: { id: pj.kemasanId! } });
+              if (kData) {
+                kemasanList.push(kData);
+                kemasanMap.set(kData.id, kData);
+              }
+            }
+          }
+        }
+      }
+    }
     const produkJadiMap = new Map(produkJadiList.map((p) => [p.id, p]));
 
     // 4) Validasi stok kemasan
@@ -367,7 +410,8 @@ export async function buatOutput(input: BuatOutputInput): Promise<BuatOutputHasi
         produkJadiId: o.produkJadiId,
         qty: o.qty,
         beratBersih: produkJadiMap.get(o.produkJadiId)?.beratBersih ?? null,
-      }))
+      })),
+      input.biayaLain ?? []
     );
 
     const nomor = buatNomorDokumen("OUT");

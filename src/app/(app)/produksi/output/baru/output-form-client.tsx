@@ -67,6 +67,10 @@ export function OutputFormClient() {
   const [outputBaris, setOutputBaris] = React.useState<OutputBaris[]>([]);
   const [kemasanBaris, setKemasanBaris] = React.useState<KemasanBaris[]>([]);
 
+  interface BiayaLainBaris { key: string; kategori: string; jumlah: string; catatan: string; }
+  const [biayaLainBaris, setBiayaLainBaris] = React.useState<BiayaLainBaris[]>([]);
+  const KATEGORI_BIAYA = ['GAS', 'BENSIN', 'LISTRIK', 'TRANSPORTASI', 'LAINNYA'];
+
   // Maps
   const produkJadiMap = React.useMemo(() => new Map(produkJadiList.map((p) => [p.id, p])), [produkJadiList]);
   const kemasanMap = React.useMemo(() => new Map(kemasanList.map((k) => [k.id, k])), [kemasanList]);
@@ -108,6 +112,12 @@ export function OutputFormClient() {
     [selectedProsesIds, prosesMap]
   );
 
+  // Total biaya lain
+  const totalBiayaLain = React.useMemo(
+    () => biayaLainBaris.reduce((sum, b) => sum + num(b.jumlah), 0),
+    [biayaLainBaris]
+  );
+
   // Total biaya kemasan
   const totalBiayaKemasan = React.useMemo(
     () => kemasanBaris.reduce((sum, k) => sum + num(k.qtyPakai) * num(k.hargaSatuan), 0),
@@ -116,7 +126,7 @@ export function OutputFormClient() {
 
   // HPP preview
   const hppPreview = React.useMemo(() => {
-    const totalBiayaBatch = totalBiayaProses + totalBiayaKemasan;
+    const totalBiayaBatch = totalBiayaProses + totalBiayaKemasan + totalBiayaLain;
     const outputValid = outputBaris.filter((o) => o.produkJadiId && num(o.qty) > 0);
     if (outputValid.length === 0) return null;
 
@@ -141,7 +151,7 @@ export function OutputFormClient() {
         hppPerUnit: o.qty > 0 ? (hppPerGram * o.totalBerat) / o.qty : 0,
       })),
     };
-  }, [totalBiayaProses, totalBiayaKemasan, outputBaris, produkJadiMap]);
+  }, [totalBiayaProses, totalBiayaKemasan, totalBiayaLain, outputBaris, produkJadiMap]);
 
   // Validasi stok kemasan
   const peringatanStok = React.useMemo(() => {
@@ -172,6 +182,22 @@ export function OutputFormClient() {
   function hapusOutputBaris(key: string) { setOutputBaris((prev) => prev.filter((o) => o.key !== key)); }
   function updateOutputBaris(key: string, patch: Partial<OutputBaris>) {
     setOutputBaris((prev) => prev.map((o) => (o.key === key ? { ...o, ...patch } : o)));
+    if (patch.produkJadiId) {
+      const produk = produkJadiList.find(p => p.id === patch.produkJadiId) as any;
+      if (produk && produk.kemasanId) {
+        const alreadyExists = kemasanBaris.some(k => k.kemasanId === produk.kemasanId);
+        if (!alreadyExists) {
+          const qtyKemasan = Number(produk.qtyKemasanPerUnit ?? 1);
+          const outputQty = num(patch.qty || '1');
+          setKemasanBaris(prev => [...prev, {
+            key: keyBaru(),
+            kemasanId: produk.kemasanId,
+            qtyPakai: String(outputQty * qtyKemasan),
+            hargaSatuan: '',
+          }]);
+        }
+      }
+    }
   }
 
   // Kemasan baris CRUD
@@ -179,6 +205,12 @@ export function OutputFormClient() {
   function hapusKemasanBaris(key: string) { setKemasanBaris((prev) => prev.filter((k) => k.key !== key)); }
   function updateKemasanBaris(key: string, patch: Partial<KemasanBaris>) {
     setKemasanBaris((prev) => prev.map((k) => (k.key === key ? { ...k, ...patch } : k)));
+  }
+
+  function tambahBiayaLain() { setBiayaLainBaris((prev) => [...prev, { key: keyBaru(), kategori: 'LAINNYA', jumlah: '', catatan: '' }]); }
+  function hapusBiayaLain(key: string) { setBiayaLainBaris((prev) => prev.filter((b) => b.key !== key)); }
+  function updateBiayaLain(key: string, patch: Partial<BiayaLainBaris>) {
+    setBiayaLainBaris((prev) => prev.map((b) => (b.key === key ? { ...b, ...patch } : b)));
   }
 
   // Submit
@@ -212,6 +244,11 @@ export function OutputFormClient() {
             kemasanId: k.kemasanId,
             qtyPakai: num(k.qtyPakai),
             hargaSatuanSaatItu: num(k.hargaSatuan),
+          })),
+          biayaLain: biayaLainBaris.filter(b => num(b.jumlah) > 0).map((b) => ({
+            kategori: b.kategori,
+            jumlah: num(b.jumlah),
+            catatan: b.catatan || undefined,
           })),
         }),
       });
@@ -324,6 +361,34 @@ export function OutputFormClient() {
           )}
         </Card>
 
+        {/* Biaya Lain */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">Biaya Lain per Batch</CardTitle>
+            <Button type="button" variant="secondary" size="sm" onClick={tambahBiayaLain}><Plus className="h-4 w-4" /> Tambah</Button>
+          </CardHeader>
+          {biayaLainBaris.length === 0 ? (
+            <p className="text-sm text-gray-500 dark:text-gray-400">Gas, bensin, listrik, dll. Opsional.</p>
+          ) : (
+            <div className="space-y-3">
+              {biayaLainBaris.map((b) => (
+                <div key={b.key} className="grid gap-3 sm:grid-cols-[140px_1fr_1fr_40px] items-end">
+                  <select value={b.kategori} onChange={(e) => updateBiayaLain(b.key, { kategori: e.target.value })}
+                    className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-800">
+                    {KATEGORI_BIAYA.map(k => <option key={k} value={k}>{k}</option>)}
+                  </select>
+                  <Input label="Jumlah (Rp)" type="number" min="0" step="any" value={b.jumlah} onChange={(e) => updateBiayaLain(b.key, { jumlah: e.target.value })} placeholder="0" />
+                  <Input label="Catatan" value={b.catatan} onChange={(e) => updateBiayaLain(b.key, { catatan: e.target.value })} placeholder="Opsional" />
+                  <Button type="button" variant="danger" size="sm" onClick={() => hapusBiayaLain(b.key)} className="mb-0.5"><Trash2 className="h-4 w-4" /></Button>
+                </div>
+              ))}
+              {totalBiayaLain > 0 && (
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Total Biaya Lain: {formatRupiah(totalBiayaLain)}</p>
+              )}
+            </div>
+          )}
+        </Card>
+
         {/* Preview HPP */}
         {hppPreview && (
           <Card>
@@ -333,6 +398,10 @@ export function OutputFormClient() {
                 <div>
                   <p className="text-gray-500 dark:text-gray-500">Total Biaya Batch</p>
                   <p className="font-semibold text-gray-900 dark:text-gray-50">{formatRupiah(hppPreview.totalBiayaBatch)}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500 dark:text-gray-500">Biaya Lain</p>
+                  <p className="font-semibold text-gray-900 dark:text-gray-50">{formatRupiah(totalBiayaLain)}</p>
                 </div>
                 <div>
                   <p className="text-gray-500 dark:text-gray-500">Total Berat Output</p>

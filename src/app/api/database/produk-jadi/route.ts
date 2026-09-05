@@ -10,6 +10,9 @@ function serialize(item: {
   harga: unknown;
   stok: unknown;
   stokMinimum: unknown;
+  kemasanId: string | null;
+  qtyKemasanPerUnit: unknown;
+  kemasan?: { id: string; nama: string } | null;
   createdAt: Date;
   updatedAt: Date;
 }) {
@@ -21,6 +24,9 @@ function serialize(item: {
     harga: Number(item.harga),
     stok: Number(item.stok),
     stokMinimum: Number(item.stokMinimum),
+    kemasanId: item.kemasanId,
+    qtyKemasanPerUnit: Number(item.qtyKemasanPerUnit ?? 1),
+    kemasan: item.kemasan ?? null,
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
   };
@@ -40,6 +46,7 @@ export const GET = withAuth(async (_user, req) => {
 
     const items = await getPrisma().produkJadi.findMany({ take: 200, where: search ? { nama: { contains: search, mode: "insensitive" } } : undefined,
       orderBy: { nama: "asc" },
+      include: { kemasan: { select: { id: true, nama: true } } },
     });
 
     return NextResponse.json({ items: items.map(serialize) });
@@ -72,6 +79,8 @@ export const POST = withOwner(async (user, req) => {
         harga: Number(body.harga ?? 0),
         stok: Number(body.stok ?? 0),
         stokMinimum: Number(body.stokMinimum ?? 0),
+        kemasanId: body.kemasanId || null,
+        qtyKemasanPerUnit: Number(body.qtyKemasanPerUnit ?? 1),
       },
     });
 

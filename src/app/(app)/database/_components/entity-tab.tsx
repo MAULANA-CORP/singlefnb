@@ -48,6 +48,20 @@ export function EntityTab({ entity, role }: { entity: EntityUiConfig; role: Role
 
   const [importOpen, setImportOpen] = React.useState(false);
 
+  // Kemasan options untuk dropdown di form Produk Jadi
+  const [kemasanOptions, setKemasanOptions] = React.useState<{ value: string; label: string }[]>([]);
+  React.useEffect(() => {
+    if (entity.slug === 'produk-jadi') {
+      fetch('/api/database/kemasan')
+        .then(r => r.json())
+        .then(data => {
+          const items = data.items || data.data || [];
+          setKemasanOptions(items.map((k: any) => ({ value: k.id, label: k.nama })));
+        })
+        .catch(() => {});
+    }
+  }, [entity.slug]);
+
   const load = React.useCallback(async () => {
     setLoading(true);
     try {
@@ -301,7 +315,17 @@ export function EntityTab({ entity, role }: { entity: EntityUiConfig; role: Role
         <form onSubmit={submitForm} className="space-y-4">
           {entity.fields.map((f) => (
             <div key={f.key}>
-              {f.type === "select" ? (
+              {f.key === "kemasanId" ? (
+                <SearchableSelect
+                  label={f.label}
+                  value={formValues[f.key] || null}
+                  onChange={(v) => setFormValues((prev) => ({ ...prev, [f.key]: v ?? "" }))}
+                  options={kemasanOptions}
+                  placeholder="Pilih kemasan (opsional)"
+                  searchPlaceholder="Cari kemasan..."
+                  emptyText="Tidak ditemukan"
+                />
+              ) : f.type === "select" ? (
                 <SearchableSelect
                   label={f.label}
                   required={f.required}

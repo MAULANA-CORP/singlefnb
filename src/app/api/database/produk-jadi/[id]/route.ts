@@ -10,6 +10,9 @@ function serialize(item: {
   harga: unknown;
   stok: unknown;
   stokMinimum: unknown;
+  kemasanId: string | null;
+  qtyKemasanPerUnit: unknown;
+  kemasan?: { id: string; nama: string } | null;
   createdAt: Date;
   updatedAt: Date;
 }) {
@@ -21,6 +24,9 @@ function serialize(item: {
     harga: Number(item.harga),
     stok: Number(item.stok),
     stokMinimum: Number(item.stokMinimum),
+    kemasanId: item.kemasanId,
+    qtyKemasanPerUnit: Number(item.qtyKemasanPerUnit ?? 1),
+    kemasan: item.kemasan ?? null,
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
   };
@@ -67,6 +73,8 @@ export const PUT = withOwner<{ params: Promise<{ id: string }> }>(async (user, r
         harga: Number(body.harga ?? 0),
         stok: Number(body.stok ?? 0),
         stokMinimum: Number(body.stokMinimum ?? 0),
+        kemasanId: body.kemasanId !== undefined ? (body.kemasanId || null) : undefined,
+        qtyKemasanPerUnit: body.qtyKemasanPerUnit !== undefined ? Number(body.qtyKemasanPerUnit) : undefined,
       },
     });
 

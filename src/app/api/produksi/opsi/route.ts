@@ -18,7 +18,7 @@ export const GET = withOwnerProduksi(async () => {
         select: { id: true, nama: true, satuan: true, stok: true },
       }),
       prisma.produkJadi.findMany({ take: 200, orderBy: { nama: "asc" },
-        select: { id: true, nama: true, satuan: true, beratBersih: true, stok: true },
+        select: { id: true, nama: true, satuan: true, beratBersih: true, stok: true, kemasanId: true, qtyKemasanPerUnit: true },
       }),
       // Proses yang sudah SELESAI, bisa dipilih untuk Output
       prisma.proses.findMany({
