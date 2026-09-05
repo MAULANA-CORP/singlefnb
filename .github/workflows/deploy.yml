@@ -1,1 +1,57 @@
-cat "/g/REPO/1- GAMPANGIN/singlefnb/....
+name: Deploy to EP Server
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H 43.129.38.56 >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Sync code to server
+        run: |
+          rsync -avz --delete \
+            -e "ssh -i ~/.ssh/deploy_key" \
+            --exclude 'node_modules' \
+            --exclude '.next' \
+            --exclude '.git' \
+            --exclude 'pnpm-lock.yaml' \
+            --exclude 'pnpm-workspace.yaml' \
+            --exclude '.hermes' \
+            --exclude '.claude' \
+            --exclude '.cursor' \
+            --exclude 'tsconfig.tsbuildinfo' \
+            ./ root@43.129.38.56:/etc/easypanel/projects/creative/singlefnb-app/code/
+
+      - name: Build and deploy on server
+        run: |
+          ssh -i ~/.ssh/deploy_key root@43.129.38.56 '
+            cd /etc/easypanel/projects/creative/singlefnb-app/code &&
+            docker build -t creative_singlefnb-app:latest . &&
+            docker service update --force creative_singlefnb-app &&
+            echo "DEPLOY OK"
+          '
+
+      - name: Verify app is running
+        run: |
+          sleep 10
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 15 "https://chilioilsendi.gampangin.biz.id/" || true)
+          if [ "$STATUS" = "307" ] || [ "$STATUS" = "200" ]; then
+            echo "App is live (HTTP $STATUS)"
+          else
+            echo "App returned HTTP $STATUS - check server"
+          fi
+
+      - name: Cleanup SSH key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key
