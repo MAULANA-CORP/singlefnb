@@ -82,3 +82,4 @@ role/nonaktif-kan user langsung berlaku.
 ## Deploy
 
 Lihat [`DEPLOY_EASYPANEL.md`](./DEPLOY_EASYPANEL.md).
+# Auto-deploy trigger
