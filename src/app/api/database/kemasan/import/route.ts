@@ -31,6 +31,7 @@ export const POST = withOwner(async (user, req) => {
         satuan: String(row.data.satuan),
         stok: Number(row.data.stok ?? 0),
         stokMinimum: Number(row.data.stokMinimum ?? 0),
+        harga: Number(row.data.harga ?? 0),
       };
       try {
         if (row.action === "update" && row.matchedId) {

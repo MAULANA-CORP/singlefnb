@@ -8,6 +8,7 @@ function serialize(item: {
   satuan: string;
   stok: unknown;
   stokMinimum: unknown;
+  harga: unknown;
   createdAt: Date;
   updatedAt: Date;
 }) {
@@ -17,6 +18,7 @@ function serialize(item: {
     satuan: item.satuan,
     stok: Number(item.stok),
     stokMinimum: Number(item.stokMinimum),
+    harga: Number(item.harga),
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
   };
@@ -61,6 +63,7 @@ export const POST = withOwner(async (user, req) => {
         satuan,
         stok: Number(body.stok ?? 0),
         stokMinimum: Number(body.stokMinimum ?? 0),
+        harga: Number(body.harga ?? 0),
       },
     });
 

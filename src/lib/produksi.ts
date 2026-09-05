@@ -354,12 +354,7 @@ export async function buatOutput(input: BuatOutputInput): Promise<BuatOutputHasi
         if (outputLine) {
           const alreadyInList = input.kemasan.some(k => k.kemasanId === pj.kemasanId);
           if (!alreadyInList) {
-            const lastPurchase = await tx.pembelianItem.findFirst({
-              where: { kemasanId: pj.kemasanId! },
-              orderBy: { pembelian: { tanggal: "desc" } },
-              select: { hargaSatuan: true },
-            });
-            const hargaSatuan = lastPurchase ? Number(lastPurchase.hargaSatuan) : 0;
+            const hargaSatuan = Number(pj.kemasan.harga ?? 0);
             const qtyPakai = outputLine.qty * Number(pj.qtyKemasanPerUnit ?? 1);
             input.kemasan.push({
               kemasanId: pj.kemasanId!,

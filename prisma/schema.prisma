@@ -232,6 +232,7 @@ model Kemasan {
   satuan      String // pcs, botol, dus, dst
   stok        Decimal  @default(0) @db.Decimal(15, 3)
   stokMinimum Decimal  @default(0) @db.Decimal(15, 3)
+  harga       Decimal  @default(0) @db.Decimal(15, 2) // harga per unit kemasan (untuk HPP)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
