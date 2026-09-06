@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import { NAV_GROUPS } from "@/components/layout/nav-items";
 import type { Role } from "@/lib/session";
 
-export function Sidebar({ role, className }: { role: Role; className?: string }) {
+export function Sidebar({ role, className, onNavigate }: { role: Role; className?: string; onNavigate?: () => void }) {
   const pathname = usePathname();
 
   return (
@@ -31,6 +31,7 @@ export function Sidebar({ role, className }: { role: Role; className?: string })
                   <Link
                     key={item.href}
                     href={item.href}
+                    onClick={onNavigate}
                     className={cn(
                       "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                       active
