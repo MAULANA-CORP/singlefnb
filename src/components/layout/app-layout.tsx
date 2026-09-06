@@ -53,7 +53,7 @@ export function AppLayout({
           )}
           <span className="truncate text-sm font-semibold text-gray-900 dark:text-gray-50">{namaToko}</span>
         </div>
-        <Sidebar role={role} />
+        <Sidebar role={role} onNavigate={() => setDrawerOpen(false)} />
       </aside>
 
       {/* Drawer mobile */}
@@ -73,7 +73,7 @@ export function AppLayout({
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <Sidebar role={role} />
+            <Sidebar role={role} onNavigate={() => setDrawerOpen(false)} />
           </aside>
         </div>
       )}
