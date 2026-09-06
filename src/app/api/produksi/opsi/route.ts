@@ -20,9 +20,9 @@ export const GET = withOwnerProduksi(async () => {
       prisma.produkJadi.findMany({ take: 200, orderBy: { nama: "asc" },
         select: { id: true, nama: true, satuan: true, beratBersih: true, stok: true, kemasanId: true, qtyKemasanPerUnit: true },
       }),
-      // Proses yang sudah SELESAI, bisa dipilih untuk Output
+      // Proses yang sudah SELESAI & belum dipakai di Output manapun
       prisma.proses.findMany({
-        where: { status: "SELESAI" },
+        where: { status: "SELESAI", outputs: { none: {} } },
         orderBy: { createdAt: "desc" },
         take: 200,
         select: {
